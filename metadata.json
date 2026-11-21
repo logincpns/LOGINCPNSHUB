@@ -1,0 +1,8 @@
+{
+  "name": "LOGIN CPNS V6",
+  "description": "Platform bimbingan belajar dan simulasi CAT SKD CPNS yang menyediakan latihan soal, materi, dan try out profesional.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

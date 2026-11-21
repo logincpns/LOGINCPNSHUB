@@ -1,0 +1,1001 @@
+PRODUCT REQUIREMENTS DOCUMENT (PRD)
+LOGIN CPNS
+Platform Belajar, Latihan Soal, dan Tryout SKD CPNS Berbasis CAT
+Versi: 1.0
+Nama Produk: LOGIN CPNS
+Jenis Produk: Web Application / Responsive Web App
+Bahasa: Indonesia
+Target Pengguna: Peserta seleksi CPNS
+Platform: Desktop, Laptop, Tablet, dan Smartphone
+Prioritas: Aplikasi siap digunakan, bukan sekadar prototype atau desain tampilan.
+________________________________________
+1. INSTRUKSI UTAMA UNTUK AI APP BUILDER
+Bangun sebuah aplikasi web profesional bernama LOGIN CPNS, yaitu platform belajar dan latihan ujian SKD CPNS dengan sistem Computer Assisted Test (CAT).
+Aplikasi harus memiliki pengalaman penggunaan yang menyerupai sistem ujian CAT BKN, dengan tampilan modern, navigasi soal, penghitung waktu, penanda jawaban, penilaian otomatis, pembahasan soal, riwayat hasil ujian, serta sistem keanggotaan Premium.
+Aplikasi harus benar-benar berfungsi. Seluruh tombol, menu, formulir, navigasi, penyimpanan data, login, ujian, dan panel admin harus terhubung dengan backend dan database.
+Jangan hanya membuat halaman statis atau prototype.
+buat struktur database yang sesuai dengan spesifikasi di bawah.
+Jika menggunakan Google Apps Script dan Google Spreadsheet, gunakan Spreadsheet sebagai database dan Apps Script sebagai backend. Dan google drive untuk upload materi pembahasan pembelajaran. 
+Prioritaskan:
+1.	Fungsionalitas aplikasi.
+2.	Keamanan akun dan data pengguna.
+3.	Akurasi penilaian ujian.
+4.	Pengalaman ujian CAT.
+5.	Tampilan profesional dan responsif.
+6.	Kemudahan pengelolaan oleh Super Admin.
+Jangan menghilangkan fitur yang telah ditentukan dalam dokumen ini.
+________________________________________
+2. VISI DAN TUJUAN APLIKASI
+LOGIN CPNS adalah platform pendamping belajar bagi calon peserta seleksi CPNS untuk mempersiapkan diri menghadapi Seleksi Kompetensi Dasar (SKD).
+Aplikasi menyediakan:
+•	Materi pembelajaran SKD.
+•	Bank soal TWK, TIU, dan TKP.
+•	Latihan soal harian.
+•	Tryout berdasarkan kategori.
+•	Tryout SKD lengkap.
+•	Simulasi CAT dengan batas waktu.
+•	Penilaian otomatis.
+•	Pembahasan dan kunci jawaban.
+•	Riwayat hasil ujian.
+•	Paket keanggotaan Premium.
+•	Tryout bersama secara terjadwal.
+•	Pemeringkatan peserta tryout bersama.
+•	Panel pengelolaan untuk Super Admin.
+Tujuan utama: Membantu peserta memahami materi, membiasakan diri mengerjakan soal dengan batas waktu, dan mengukur kesiapan menghadapi SKD CPNS.
+________________________________________
+3. IDENTITAS DAN DESAIN VISUAL
+3.1 Identitas
+Nama aplikasi: LOGIN CPNS.
+Gunakan identitas visual yang profesional, modern, bersih, dan mudah dikenali.
+3.2 Warna
+Gunakan kombinasi:
+•	Biru utama: #2563EB
+•	Biru tua: #173B70
+•	Biru muda: #EFF6FF
+•	Putih: #FFFFFF
+•	Abu-abu latar: #F8FAFC
+•	Hijau: untuk jawaban benar atau status berhasil.
+•	Merah: untuk jawaban salah atau peringatan.
+•	Oranye: untuk penanda soal yang ragu-ragu atau perlu ditinjau.
+Hindari penggunaan warna yang terlalu mencolok.
+3.3 Gaya desain
+Gunakan desain:
+•	Modern dan minimalis.
+•	Profesional seperti platform pendidikan premium.
+•	Kartu dengan sudut membulat.
+•	Bayangan lembut.
+•	Ikon sederhana dan konsisten.
+•	Tipografi yang jelas dan mudah dibaca.
+•	Jarak antarelemen yang rapi.
+•	Animasi ringan dan tidak mengganggu.
+3.4 Responsivitas
+Aplikasi harus berjalan baik pada:
+•	Komputer desktop.
+•	Laptop.
+•	Tablet.
+•	Smartphone Android.
+•	Smartphone iPhone.
+Pada smartphone, ubah sidebar menjadi menu navigasi yang praktis. Tombol ujian harus mudah dijangkau dengan jempol. Jangan mengecilkan seluruh tampilan desktop menjadi ukuran kecil.
+________________________________________
+4. ROLE DAN HAK AKSES PENGGUNA
+Buat tiga jenis role:
+4.1 Pengunjung
+Pengunjung belum memiliki akun.
+Hak akses:
+•	Melihat halaman utama.
+•	Melihat informasi LOGIN CPNS.
+•	Melihat informasi paket Premium.
+•	Mendaftar akun.
+•	Login.
+4.2 Member
+Pengguna yang telah mendaftar dan login.
+Hak akses:
+•	Melihat dashboard.
+•	Mengakses materi.
+•	Mengerjakan latihan harian.
+•	Mengikuti ujian sesuai hak akses.
+•	Melihat riwayat ujian.
+•	Melihat hasil dan pembahasan.
+•	Mengajukan pembayaran Premium.
+•	Melihat status keanggotaan.
+•	Mengikuti tryout bersama jika tersedia.
+4.3 Super Admin
+Pengelola utama aplikasi.
+Hak akses:
+•	Mengelola pengguna.
+•	Mengelola bank soal.
+•	Menambahkan dan mengedit soal.
+•	Import soal secara massal.
+•	Mengelola materi.
+•	Mengelola paket Premium.
+•	Memverifikasi pembayaran.
+•	Mengaktifkan dan menonaktifkan Premium.
+•	Membuat jadwal tryout bersama.
+•	Mengelola sesi Zoom.
+•	Melihat hasil ujian peserta.
+•	Mengelola leaderboard.
+•	Mengatur konfigurasi ujian.
+•	Mengelola pengaturan aplikasi.
+Jangan memberikan akses Super Admin kepada pengguna biasa.
+________________________________________
+5. HALAMAN UTAMA DAN AUTENTIKASI
+5.1 Landing Page
+Buat halaman awal LOGIN CPNS dengan:
+•	Logo dan nama LOGIN CPNS.
+•	Headline: "Persiapkan Dirimu, Raih Kelulusan CPNS."
+•	Deskripsi singkat aplikasi.
+•	Tombol Daftar Sekarang.
+•	Tombol Login.
+•	Informasi fitur aplikasi.
+•	Informasi paket Premium.
+•	Penjelasan sistem tryout.
+•	Footer.
+5.2 Registrasi
+Formulir pendaftaran memuat:
+•	Nama lengkap.
+•	Email.
+•	Nomor WhatsApp.
+•	Password.
+•	Konfirmasi password.
+•	Tombol Daftar.
+Validasi:
+•	Email tidak boleh digunakan dua kali.
+•	Password dan konfirmasi harus sama.
+•	Nomor WhatsApp harus valid.
+•	Password disimpan dengan hashing yang aman.
+•	Tampilkan notifikasi jika pendaftaran berhasil atau gagal.
+5.3 Login
+Formulir login:
+•	Email.
+•	Password.
+•	Tombol Masuk.
+•	Tautan Lupa Password.
+•	Tautan Daftar Akun.
+Gunakan sistem autentikasi yang aman dan session management yang benar.
+5.4 Lupa Password
+Sediakan fitur:
+•	Memasukkan email terdaftar.
+•	Mengirim tautan atau kode reset.
+•	Membuat password baru.
+•	Memvalidasi token reset.
+•	Mengakhiri sesi lama bila diperlukan.
+5.5 Profil Pengguna
+Setiap member memiliki halaman profil yang memuat:
+•	Foto profil.
+•	Nama lengkap.
+•	Email.
+•	Nomor WhatsApp.
+•	Tanggal pendaftaran.
+•	Status akun.
+•	Status Premium.
+•	Masa berlaku Premium.
+Pengguna dapat mengubah nama, nomor WhatsApp, foto profil, dan password.
+________________________________________
+6. DASHBOARD MEMBER
+Dashboard adalah halaman pertama setelah login.
+Buat dashboard yang informatif, ringkas, dan elegan.
+6.1 Kartu Ringkasan
+Tampilkan:
+•	Total ujian yang telah dikerjakan.
+•	Total soal yang telah dijawab.
+•	Nilai ujian terakhir.
+•	Status keanggotaan.
+•	Sisa masa aktif Premium jika pengguna Premium.
+Tidak perlu membuat menu Statistik terpisah. Informasi ringkasan cukup ditampilkan pada dashboard.
+6.2 Menu Akses Cepat
+Tampilkan kartu atau tombol:
+•	Materi Belajar.
+•	Latihan Harian.
+•	Tryout Kategori.
+•	Tryout SKD Lengkap.
+•	Tryout Bersama.
+•	Riwayat Ujian.
+•	Paket Premium.
+6.3 Informasi Dashboard
+Tampilkan:
+•	Pengumuman dari admin.
+•	Jadwal tryout mendatang.
+•	Rekomendasi materi.
+•	Riwayat aktivitas terbaru.
+•	Status pembayaran jika sedang menunggu verifikasi.
+________________________________________
+7. SISTEM UJIAN DAN LATIHAN
+Ini adalah fitur inti LOGIN CPNS.
+Buat tiga mode ujian.
+7.1 MODE 1 — TRYOUT SKD LENGKAP
+Nama menu: TRYOUT SKD LENGKAP.
+Ketentuan:
+•	Total 110 soal.
+•	Waktu pengerjaan 100 menit sebagai konfigurasi awal.
+•	Soal terdiri dari TWK, TIU, dan TKP.
+•	Soal diambil secara acak dari bank soal aktif.
+•	Komposisi kategori mengikuti konfigurasi resmi yang ditetapkan admin berdasarkan ketentuan seleksi tahun berjalan.
+•	Tidak boleh ada soal yang berulang dalam satu sesi ujian.
+•	Setiap sesi memiliki ID ujian unik.
+•	Ujian hanya dapat dikerjakan sesuai batas akses akun.
+Mode ini merupakan fitur Premium.
+7.2 MODE 2 — TRYOUT PER KATEGORI
+Nama menu: TRYOUT KATEGORI.
+Pengguna memilih salah satu:
+•	TWK.
+•	TIU.
+•	TKP.
+Ketentuan:
+•	Total 30 soal.
+•	Waktu 25 menit.
+•	Soal diambil secara acak dari kategori yang dipilih.
+•	Tidak ada pengulangan soal dalam satu sesi.
+Mode ini merupakan fitur Premium.
+7.3 MODE 3 — LATIHAN HARIAN
+Nama menu: LATIHAN HARIAN.
+Pengguna memilih:
+•	TWK.
+•	TIU.
+•	TKP.
+Ketentuan:
+•	Total 15 soal.
+•	Waktu 10 menit.
+•	Soal diambil secara acak.
+•	Hasil ditampilkan setelah ujian dikirim.
+•	Member gratis dapat menggunakan mode ini sesuai batas pemakaian yang dikonfigurasi admin.
+________________________________________
+8. TAMPILAN CAT SAAT UJIAN
+Buat halaman ujian yang terinspirasi dari sistem CAT BKN, tetapi tetap menggunakan identitas LOGIN CPNS.
+8.1 Header Ujian
+Tampilkan:
+•	Logo LOGIN CPNS.
+•	Nama peserta.
+•	Jenis ujian.
+•	Kategori soal.
+•	Nomor sesi ujian.
+•	Countdown timer.
+Timer harus terlihat jelas dan tetap aktif selama ujian.
+8.2 Area Soal
+Tampilkan:
+•	Nomor soal.
+•	Isi pertanyaan.
+•	Pilihan jawaban A, B, C, D, E.
+•	Tombol soal sebelumnya.
+•	Tombol soal selanjutnya.
+•	Tombol tandai ragu-ragu.
+•	Tombol selesai ujian.
+Pilihan jawaban harus mudah dipilih melalui mouse maupun layar sentuh.
+8.3 Navigasi Nomor Soal
+Sediakan panel nomor soal.
+Gunakan warna:
+•	Abu-abu: belum dijawab.
+•	Hijau: sudah dijawab.
+•	Oranye: ditandai ragu-ragu.
+•	Hijau-oranye atau penanda visual lain: sudah dijawab tetapi masih ditandai ragu-ragu.
+•	Warnai soal aktif
+Pengguna dapat langsung menekan nomor soal untuk berpindah.
+8.4 Timer dan Penyimpanan
+Ketentuan:
+•	Timer berjalan otomatis setelah ujian dimulai.
+•	Simpan jawaban secara otomatis.
+•	Simpan status penanda ragu-ragu.
+•	Jawaban tetap tersimpan saat pengguna berpindah soal.
+•	Jika koneksi terputus, pulihkan jawaban yang telah tersimpan.
+•	Waktu ujian dihitung berdasarkan waktu server, bukan hanya jam browser.
+•	Saat waktu habis, ujian dikirim otomatis.
+•	Pengguna tidak boleh mengubah jawaban setelah ujian dikirim.
+•	Cegah pengiriman hasil ujian ganda.
+Tampilkan konfirmasi sebelum pengguna mengakhiri ujian secara manual.
+8.5 Keamanan Soal
+Jangan mengirim kunci jawaban dan pembahasan ke browser sebelum ujian selesai.
+Validasi seluruh pengiriman jawaban di backend.
+Jangan mempercayai nilai hasil perhitungan dari browser pengguna.
+________________________________________
+9. SISTEM PENILAIAN
+Buat sistem penilaian berdasarkan kategori:
+•	TWK.
+•	TIU.
+•	TKP.
+9.1 TWK
+Penilaian menggunakan bobot sesuai ketentuan resmi yang berlaku.
+9.2 TIU
+Penilaian menggunakan bobot sesuai ketentuan resmi yang berlaku.
+9.3 TKP
+TKP tidak boleh dinilai menggunakan sistem benar-salah biasa.
+Setiap pilihan jawaban memiliki bobot nilai tersendiri sesuai kunci dan pedoman resmi.
+Buat kolom bobot untuk masing-masing pilihan A, B, C, D, dan E.
+Admin harus dapat mengatur bobot setiap opsi soal TKP.
+9.4 Passing Grade
+Buat pengaturan passing grade yang dapat diubah Super Admin.
+Pisahkan nilai ambang batas:
+•	TWK.
+•	TIU.
+•	TKP.
+Jangan mengunci angka passing grade secara permanen di dalam kode.
+Gunakan nilai resmi berdasarkan regulasi seleksi CPNS tahun berjalan. Simpan informasi tahun, nomor regulasi, tanggal berlaku, dan sumber referensinya.
+Sebelum digunakan untuk simulasi resmi, admin harus dapat mengonfirmasi konfigurasi nilai dan komposisi soal.
+9.5 Hasil Ujian
+Setelah ujian selesai, tampilkan:
+•	Nama peserta.
+•	Jenis ujian.
+•	Tanggal dan waktu.
+•	Durasi pengerjaan.
+•	Total soal.
+•	Jumlah soal dijawab.
+•	Jumlah soal tidak dijawab.
+•	Nilai TWK.
+•	Nilai TIU.
+•	Nilai TKP.
+•	Total nilai.
+•	Status memenuhi atau belum memenuhi ambang batas.
+Untuk tryout kategori, tampilkan nilai kategori yang dikerjakan.
+Gunakan label yang jelas bahwa hasil merupakan simulasi, bukan hasil resmi seleksi BKN.
+________________________________________
+10. KUNCI JAWABAN DAN PEMBAHASAN
+Setelah ujian selesai, pengguna dapat melihat:
+•	Pertanyaan.
+•	Pilihan jawaban.
+•	Jawaban pengguna.
+•	Kunci jawaban.
+•	Status benar atau salah.
+•	Bobot jawaban untuk TKP. 1 sampai dengan 5 pada setiap soal, paling benar score 5
+•	Penjelasan atau pembahasan.
+•	Nomor soal.
+Untuk soal yang belum dijawab, tampilkan status tidak dijawab.
+Sediakan navigasi pembahasan agar peserta dapat mempelajari soal satu per satu.
+Admin harus dapat menambah dan mengedit pembahasan.
+________________________________________
+11. BANK SOAL
+Buat menu BANK SOAL pada panel Super Admin.
+11.1 Data Soal
+Setiap soal mempunyai kolom:
+•	ID soal.
+•	Kategori: TWK/TIU/TKP.
+•	Judul atau topik.
+•	Pertanyaan.
+•	Pilihan A.
+•	Pilihan B.
+•	Pilihan C.
+•	Pilihan D.
+•	Pilihan E.
+•	Kunci jawaban.
+•	Bobot A.
+•	Bobot B.
+•	Bobot C.
+•	Bobot D.
+•	Bobot E.
+•	Pembahasan.
+•	Tingkat kesulitan.
+•	Status aktif/nonaktif.
+•	Tanggal dibuat.
+•	Tanggal diperbarui.
+Bobot opsi terutama digunakan untuk TKP. Untuk TWK dan TIU, gunakan sistem skor yang ditetapkan pada konfigurasi penilaian.
+11.2 Pengelolaan Soal
+Admin dapat:
+•	Menambahkan soal.
+•	Mengedit soal.
+•	Menghapus atau menonaktifkan soal.
+•	Melihat detail soal.
+•	Mencari soal.
+•	Memfilter berdasarkan kategori.
+•	Memfilter berdasarkan tingkat kesulitan.
+•	Melihat jumlah soal setiap kategori.
+11.3 Import Soal Massal
+Buat fitur import soal agar admin tidak perlu mengetik soal satu per satu.
+Format yang didukung:
+•	CSV.
+•	Excel XLSX.
+•	Word DOCX jika parser tersedia.
+Sediakan template unduhan.
+Untuk DOCX, gunakan format terstruktur dengan penanda:
+•	KATEGORI
+•	JUDUL
+•	PERTANYAAN
+•	A.
+•	B.
+•	C.
+•	D.
+•	E.
+•	KUNCI JAWABAN
+•	BOBOT A sampai E untuk TKP.
+•	PEMBAHASAN
+•	TINGKAT KESULITAN
+Proses import:
+1.	Admin mengunggah file.
+2.	Sistem membaca isi file.
+3.	Sistem memvalidasi kelengkapan soal.
+4.	Sistem menampilkan preview.
+5.	Admin mengonfirmasi.
+6.	Soal masuk ke bank soal.
+7.	Sistem menampilkan jumlah soal berhasil dan gagal diimpor.
+Jangan langsung memasukkan data tanpa preview dan konfirmasi.
+________________________________________
+12. MATERI BELAJAR
+Buat menu MATERI BELAJAR.
+Kategori:
+•	TWK.
+•	TIU.
+•	TKP.
+Setiap materi memiliki:
+•	Judul.
+•	Kategori.
+•	Ringkasan.
+•	Isi materi.
+•	Gambar atau ilustrasi jika tersedia.
+•	File PDF jika tersedia.
+•	Tanggal publikasi.
+•	Status aktif/nonaktif.
+Pengguna dapat:
+•	Membuka materi.
+•	Membaca materi.
+•	Mengunduh file yang diizinkan.
+•	Menandai materi selesai dipelajari.
+Admin dapat:
+•	Menambah materi.
+•	Mengedit materi.
+•	Menghapus atau menonaktifkan materi.
+•	Mengunggah PDF.
+•	Mengatur urutan materi.
+•	Buat database nya menjadi di google drive. Dan admin tinggal mungploud materi dalam bentuk gambar, pdf, video dan lainnya.
+________________________________________
+13. PAKET PREMIUM DAN PEMBAYARAN
+Buat sistem keanggotaan dengan dua status:
+•	FREE.
+•	PREMIUM.
+13.1 Fitur Free
+Pengguna gratis dapat:
+•	Mengakses dashboard.
+•	Membaca materi yang dibuka untuk umum.
+•	Mengerjakan latihan harian sesuai batas.
+•	Melihat riwayat latihan yang tersedia.
+•	Melihat informasi paket Premium.
+13.2 Fitur Premium
+Pengguna Premium dapat:
+•	Mengakses seluruh tryout SKD lengkap.
+•	Mengakses seluruh tryout kategori.
+•	Mengakses bank latihan Premium.
+•	Melihat pembahasan sesuai hak akses.
+•	Mengakses materi Premium.
+•	Mengikuti tryout bersama yang dibuka untuk member Premium.
+13.3 Paket Premium
+Buat pengaturan paket yang dinamis.
+Contoh paket awal:
+•	Premium 11 tahun.
+•	Harga awal Rp99.000.
+Harga dan masa aktif harus dapat diubah admin.
+13.4 Pembayaran Manual
+Sediakan pilihan pembayaran:
+•	Transfer bank.
+•	QRIS.
+•	Tunai/COD dengan konfirmasi ke  nomor admin 081312139893.
+Alur pembayaran:
+1.	Pengguna memilih paket Premium.
+2.	Sistem menampilkan nominal pembayaran.
+3.	Sistem menampilkan instruksi pembayaran.
+4.	Pengguna mengunggah bukti pembayaran.
+5.	Status pembayaran menjadi MENUNGGU VERIFIKASI.
+6.	Admin memeriksa pembayaran.
+7.	Admin menyetujui atau menolak pembayaran.
+8.	Jika disetujui, sistem mengaktifkan Premium.
+9.	Masa aktif dihitung sesuai paket.
+10.	Pengguna menerima notifikasi status pembayaran.
+13.5 Panel Verifikasi Pembayaran
+Admin dapat:
+•	Melihat daftar pembayaran.
+•	Melihat nama pengguna.
+•	Melihat paket.
+•	Melihat nominal.
+•	Melihat tanggal pembayaran.
+•	Melihat bukti pembayaran.
+•	Menyetujui pembayaran.
+•	Menolak pembayaran dengan alasan.
+•	Mengaktifkan Premium secara manual.
+•	Memperpanjang masa aktif.
+•	Menonaktifkan Premium.
+Jangan mengaktifkan Premium hanya karena pengguna mengunggah bukti transfer. Aktivasi harus melalui persetujuan admin.
+________________________________________
+14. TRYOUT BERSAMA
+Buat fitur TRYOUT BERSAMA.
+Fitur ini digunakan untuk mengadakan ujian bersama pada waktu yang telah ditentukan.
+14.1 Panel Admin
+Admin dapat membuat sesi dengan data:
+•	Nama sesi.
+•	Deskripsi.
+•	Jenis ujian.
+•	Jumlah soal.
+•	Durasi.
+•	Tanggal pelaksanaan.
+•	Jam mulai.
+•	Jam berakhir.
+•	Kuota peserta.
+•	Status pendaftaran.
+•	Link Zoom.
+•	Status sesi.
+14.2 Panel Peserta
+Peserta dapat:
+•	Melihat jadwal.
+•	Mendaftar sesi.
+•	Melihat detail sesi.
+•	Melihat hitung mundur.
+•	Masuk ke ujian ketika sesi dibuka.
+•	Melihat hasil setelah sesi selesai.
+14.3 Sistem Ujian Serentak
+Untuk sesi bersama:
+•	Semua peserta tidak harus menggunakan waktu mulai dan batas akhir yang sama. Namun score akan masuk ke sesi yang sama
+•	Timer mengikuti waktu server.
+•	Peserta tidak dapat memulai sesi lebih awal.
+•	Peserta tidak dapat memperpanjang waktu sendiri.
+•	Jawaban disimpan otomatis.
+•	Sistem menutup ujian saat waktu berakhir.
+Jika peserta terlambat, aturan keterlambatan mengikuti pengaturan admin.
+14.4 Leaderboard
+Setelah sesi selesai, tampilkan peringkat peserta berdasarkan:
+1.	Total nilai.
+2.	Waktu penyelesaian sebagai kriteria pemecah nilai yang sama jika diaktifkan.
+Leaderboard menampilkan:
+•	Peringkat.
+•	Nama peserta.
+•	Nilai TWK.
+•	Nilai TIU.
+•	Nilai TKP.
+•	Total nilai.
+Admin dapat menyembunyikan leaderboard atau membatasi nama yang ditampilkan.
+14.5 Coaching Zoom
+Admin dapat mengisi:
+•	Link Zoom.
+•	Tanggal coaching.
+•	Jam coaching.
+•	Deskripsi pembahasan.
+Peserta yang berhak dapat melihat informasi dan mengakses tautan Zoom.
+________________________________________
+15. RIWAYAT UJIAN
+Buat menu RIWAYAT UJIAN.
+Tampilkan daftar:
+•	Tanggal ujian.
+•	Nama ujian.
+•	Mode ujian.
+•	Kategori.
+•	Jumlah soal.
+•	Nilai.
+•	Status.
+Pengguna dapat membuka detail hasil dan pembahasa.
+Sediakan filter:
+•	Semua ujian.
+•	Tryout lengkap.
+•	Tryout kategori.
+•	Latihan harian.
+•	Tryout bersama.
+Jangan membuat menu Statistik terpisah.
+________________________________________
+16. PANEL SUPER ADMIN
+Buat dashboard admin terpisah dengan sidebar.
+Menu admin:
+1.	Dashboard Admin.
+2.	Data Pengguna.
+3.	Bank Soal.
+4.	Import Soal.
+5.	Materi Belajar.
+6.	Paket Premium.
+7.	Pembayaran.
+8.	Aktivasi Premium.
+9.	Tryout Bersama.
+10.	Jadwal Zoom.
+11.	Hasil Ujian.
+12.	Pengaturan Ujian.
+13.	Pengaturan Aplikasi.
+14.	Audit Log.
+15.	Keluar.
+16.1 Dashboard Admin
+Tampilkan ringkasan:
+•	Total pengguna.
+•	Pengguna aktif.
+•	Jumlah Premium.
+•	Pembayaran menunggu verifikasi.
+•	Total soal aktif.
+•	Jumlah materi.
+•	Sesi tryout mendatang.
+Ini adalah ringkasan pengelolaan admin, bukan menu Statistik member.
+16.2 Data Pengguna
+Admin dapat:
+•	Melihat semua pengguna.
+•	Mencari pengguna.
+•	Melihat detail akun.
+•	Mengubah status aktif/nonaktif.
+•	Melihat riwayat pembayaran.
+•	Melihat riwayat ujian.
+•	Mengaktifkan Premium.
+•	Mengatur masa aktif Premium.
+16.3 Pengaturan Ujian
+Admin dapat mengatur:
+•	Jumlah soal per mode.
+•	Durasi ujian.
+•	Komposisi soal TWK/TIU/TKP.
+•	Passing grade.
+•	Bobot penilaian.
+•	Hak akses Free dan Premium.
+•	Batas latihan harian.
+•	Pengaturan tryout bersama.
+Semua pengaturan harus tersimpan di database, bukan hanya di kode frontend.
+________________________________________
+17. STRUKTUR DATABASE
+Buat database relasional yang rapi.
+Minimal tabel berikut:
+17.1 users
+•	id
+•	full_name
+•	email
+•	phone
+•	password_hash atau auth_provider_id
+•	photo_url
+•	role
+•	account_status
+•	membership_type
+•	premium_start
+•	premium_end
+•	created_at
+•	updated_at
+17.2 questions
+•	id
+•	category
+•	topic
+•	question_text
+•	option_a
+•	option_b
+•	option_c
+•	option_d
+•	option_e
+•	correct_answer
+•	weight_a
+•	weight_b
+•	weight_c
+•	weight_d
+•	weight_e
+•	explanation
+•	difficulty
+•	is_active
+•	created_at
+•	updated_at
+17.3 materials
+•	id
+•	title
+•	category
+•	summary
+•	content
+•	file_url
+•	is_premium
+•	is_active
+•	created_at
+•	updated_at
+17.4 exams
+•	id
+•	user_id
+•	session_id
+•	exam_type
+•	category
+•	total_questions
+•	duration_minutes
+•	started_at
+•	deadline_at
+•	submitted_at
+•	status
+•	total_score
+•	twk_score
+•	tiu_score
+•	tkp_score
+•	pass_status
+17.5 exam_questions
+•	id
+•	exam_id
+•	question_id
+•	question_order
+Simpan daftar soal yang telah dipilih agar soal tidak berubah ketika ujian sedang berlangsung.
+17.6 answers
+•	id
+•	exam_id
+•	question_id
+•	selected_answer
+•	is_flagged
+•	answered_at
+•	score
+17.7 results
+•	id
+•	exam_id
+•	user_id
+•	twk_score
+•	tiu_score
+•	tkp_score
+•	total_score
+•	pass_status
+•	completed_at
+17.8 packages
+•	id
+•	package_name
+•	price
+•	duration_days
+•	description
+•	is_active
+17.9 payments
+•	id
+•	user_id
+•	package_id
+•	amount
+•	payment_method
+•	proof_url
+•	status
+•	verified_by
+•	verified_at
+•	rejection_reason
+•	created_at
+17.10 group_sessions
+•	id
+•	title
+•	description
+•	exam_type
+•	question_count
+•	duration_minutes
+•	start_at
+•	end_at
+•	quota
+•	zoom_url
+•	status
+•	created_at
+17.11 session_participants
+•	id
+•	session_id
+•	user_id
+•	exam_id
+•	registration_status
+17.12 leaderboard
+•	id
+•	session_id
+•	user_id
+•	total_score
+•	completion_time
+•	rank
+17.13 settings
+•	id
+•	setting_key
+•	setting_value
+•	updated_at
+17.14 audit_logs
+•	id
+•	actor_id
+•	action
+•	entity_type
+•	entity_id
+•	details
+•	created_at
+Buat relasi, indeks, validasi, dan kebijakan akses yang tepat. Tambahkan tabel pendukung jika diperlukan.
+________________________________________
+18. KEAMANAN APLIKASI
+Wajib menerapkan:
+•	Password tidak disimpan dalam bentuk teks biasa.
+•	Gunakan autentikasi yang aman.
+•	Validasi akses berdasarkan role.
+•	Member tidak boleh mengakses endpoint admin.
+•	Member hanya dapat melihat data miliknya sendiri.
+•	Kunci jawaban tidak dikirim sebelum ujian selesai.
+•	Nilai dihitung dan divalidasi di backend.
+•	Deadline ujian ditentukan server.
+•	Cegah duplikasi pembayaran.
+•	Cegah pengiriman ujian ganda.
+•	Validasi file upload.
+•	Batasi ukuran dan tipe file.
+•	Simpan audit log aktivitas admin.
+•	Lindungi endpoint dari manipulasi parameter.
+•	Gunakan HTTPS.
+•	Terapkan pembatasan percobaan login bila didukung.
+Jangan hanya menyembunyikan tombol admin di frontend. Lindungi seluruh data dan fungsi di backend.
+________________________________________
+19. NOTIFIKASI
+Sediakan notifikasi dalam aplikasi untuk:
+•	Pendaftaran berhasil.
+•	Pembayaran diterima.
+•	Pembayaran menunggu verifikasi.
+•	Pembayaran disetujui.
+•	Pembayaran ditolak.
+•	Premium akan berakhir.
+•	Premium berakhir.
+•	Jadwal tryout bersama.
+•	Tryout dibuka.
+•	Pengumuman admin.
+Notifikasi email atau WhatsApp dapat menjadi integrasi tahap berikutnya. Jangan mengklaim pengiriman berhasil jika layanan tersebut belum dihubungkan.
+________________________________________
+20. STRUKTUR NAVIGASI MEMBER
+Sidebar atau menu navigasi member harus berisi:
+1.	Dashboard.
+2.	Materi Belajar.
+3.	Tryout dan Latihan .
+4.1. Tryout SKD Lengkap.
+4.2. Latihan Harian.
+4.3. Tryout Katagori TWK,TIU,TKP
+4.4. TRY OUT BARENG
+4.	Riwayat Ujian.
+5.	Premium.
+6.	Profil Saya.
+7.	Keluar.
+________________________________________
+21. ALUR PENGGUNAAN UTAMA
+Alur A — Pengguna Baru
+1.	Membuka landing page.
+2.	Mendaftar.
+3.	Login.
+4.	Masuk dashboard.
+5.	Melengkapi profil.
+6.	Melihat materi dan latihan.
+7.	Mengerjakan latihan harian.
+Alur B — Mengikuti Latihan Harian
+1.	Membuka menu Latihan Harian.
+2.	Memilih TWK/TIU/TKP.
+3.	Sistem menampilkan konfirmasi ujian.
+4.	Pengguna memulai.
+5.	Timer berjalan.
+6.	Pengguna menjawab soal.
+7.	Jawaban tersimpan otomatis.
+8.	Pengguna mengirim ujian.
+9.	Sistem menghitung nilai.
+10.	Sistem menampilkan hasil dan pembahasan.
+Alur C — Membeli Premium
+1.	Membuka menu Premium.
+2.	Memilih paket.
+3.	Melakukan pembayaran.
+4.	Mengunggah bukti.
+5.	Menunggu verifikasi admin.
+6.	Admin menyetujui.
+7.	Premium aktif.
+8.	Pengguna memperoleh akses sesuai paket.
+Alur D — Mengelola Soal
+1.	Admin login.
+2.	Membuka Bank Soal.
+3.	Memilih tambah soal atau import.
+4.	Mengisi atau mengunggah data.
+5.	Sistem memvalidasi.
+6.	Admin menyimpan.
+7.	Soal masuk bank soal.
+8.	Soal dapat digunakan dalam ujian apabila aktif.
+Alur E — Tryout Bersama
+1.	Admin membuat sesi.
+2.	Peserta mendaftar.
+3.	Sistem menampilkan hitung mundur.
+4.	Pada waktu mulai, ujian dibuka.
+5.	Semua peserta mengikuti ujian.
+6.	Ujian ditutup sesuai deadline.
+7.	Sistem menghitung hasil.
+8.	Leaderboard ditampilkan sesuai pengaturan.
+________________________________________
+22. HALAMAN DAN KOMPONEN YANG WAJIB DIBUAT
+Buat halaman terpisah atau route yang sesuai untuk:
+1.	Landing Page.
+2.	Register.
+3.	Login.
+4.	Lupa Password.
+5.	Dashboard Member.
+6.	Profil Member.
+7.	Materi Belajar.
+8.	Detail Materi.
+9.	Pilihan Latihan Harian.
+10.	Pilihan Tryout Kategori.
+11.	Tryout SKD Lengkap.
+12.	Halaman CAT Ujian.
+13.	Hasil Ujian.
+14.	Pembahasan.
+15.	Riwayat Ujian.
+16.	Paket Premium.
+17.	Form Pembayaran.
+18.	Tryout Bersama.
+19.	Detail Sesi Bersama.
+20.	Dashboard Admin.
+21.	Pengelolaan Pengguna.
+22.	Pengelolaan Bank Soal.
+23.	Import Soal.
+24.	Pengelolaan Materi.
+25.	Pengelolaan Pembayaran.
+26.	Pengaturan Premium.
+27.	Pengelolaan Tryout Bersama.
+28.	Pengaturan Penilaian.
+29.	Pengaturan Aplikasi.
+________________________________________
+23. DATA DEMO DAN KONFIGURASI AWAL
+Saat aplikasi pertama kali dibuat:
+•	Siapkan satu akun Super Admin melalui proses setup yang aman.
+•	Jangan membuat password admin tetap yang tertanam di kode.
+•	Sediakan beberapa soal demo untuk pengujian.
+•	Tandai soal demo agar mudah dibedakan dari soal resmi.
+•	Sediakan satu materi demo TWK, TIU, dan TKP.
+•	Sediakan satu paket Premium awal.
+•	Sediakan pengaturan ujian yang dapat diedit.
+•	Sediakan instruksi konfigurasi awal.
+Data demo tidak boleh dianggap sebagai soal resmi CPNS.
+________________________________________
+24. KRITERIA KEBERHASILAN DAN ACCEPTANCE TEST
+Aplikasi baru dinyatakan selesai apabila seluruh pengujian berikut berhasil:
+Autentikasi
+•	Pengguna dapat mendaftar.
+•	Pengguna dapat login dan logout.
+•	Email duplikat ditolak.
+•	Reset password bekerja.
+•	Role pengguna diterapkan dengan benar.
+Ujian
+•	Ketiga mode ujian dapat dimulai.
+•	Jumlah soal sesuai konfigurasi.
+•	Timer berjalan sesuai durasi.
+•	Navigasi soal berfungsi.
+•	Jawaban tersimpan otomatis.
+•	Penanda ragu-ragu berfungsi.
+•	Waktu habis menyebabkan pengiriman otomatis.
+•	Pengguna tidak dapat mengubah jawaban setelah submit.
+•	Nilai dihitung di backend.
+•	Hasil dan pembahasan sesuai jawaban sebenarnya.
+Bank Soal
+•	Admin dapat membuat, mengedit, dan menonaktifkan soal.
+•	Import soal bekerja.
+•	Validasi import bekerja.
+•	Soal yang nonaktif tidak digunakan dalam ujian.
+•	Kunci jawaban tidak bocor selama ujian.
+Premium
+•	Pengguna dapat mengajukan pembayaran.
+•	Bukti pembayaran dapat dilihat admin.
+•	Admin dapat menyetujui atau menolak.
+•	Premium hanya aktif setelah persetujuan.
+•	Masa berlaku dihitung dengan benar.
+•	Akses Premium ditutup saat masa berlaku habis.
+Tryout Bersama
+•	Admin dapat membuat jadwal.
+•	Peserta dapat mendaftar.
+•	Ujian dimulai berdasarkan waktu server.
+•	Peserta memiliki deadline yang sama.
+•	Hasil dan leaderboard sesuai nilai sebenarnya.
+Tampilan
+•	Tidak ada halaman kosong atau tombol yang tidak berfungsi.
+•	Layout nyaman pada desktop dan smartphone.
+•	Tidak ada menu Statistik.
+•	Tidak ada data contoh yang tercampur dengan data pengguna asli.
+________________________________________
+25. PRIORITAS PENGEMBANGAN
+Bangun secara bertahap, tetapi gunakan satu arsitektur dan satu database yang konsisten.
+Tahap 1 — Fondasi Aplikasi
+•	Desain dan navigasi.
+•	Database.
+•	Registrasi dan login.
+•	Role pengguna.
+•	Dashboard member.
+•	Dashboard admin.
+•	Profil.
+Tahap 2 — Sistem Ujian
+•	Bank soal.
+•	Tiga mode ujian.
+•	Tampilan CAT.
+•	Timer.
+•	Penyimpanan jawaban.
+•	Penilaian.
+•	Hasil dan pembahasan.
+•	Riwayat.
+Tahap 3 — Materi dan Premium
+•	Materi belajar.
+•	Paket Premium.
+•	Pembayaran manual.
+•	Verifikasi admin.
+•	Aktivasi dan masa berlaku Premium.
+Tahap 4 — Fitur Lanjutan
+•	Import soal CSV/XLSX/DOCX.
+•	Tryout bersama.
+•	Sinkronisasi waktu.
+•	Leaderboard.
+•	Jadwal Zoom.
+•	Notifikasi.
+Jangan membuat ulang database atau mengubah struktur inti tanpa migrasi yang aman ketika melanjutkan tahap berikutnya.
+________________________________________
+26. INSTRUKSI AKHIR KEPADA AI BUILDER
+Bangun LOGIN CPNS sebagai aplikasi pendidikan yang siap dikembangkan dan digunakan secara nyata.
+Prioritaskan implementasi yang benar daripada sekadar menghasilkan tampilan menarik.
+Sebelum menyatakan selesai:
+1.	Periksa semua route dan navigasi.
+2.	Uji registrasi dan login.
+3.	Uji role Super Admin dan Member.
+4.	Uji seluruh mode ujian.
+5.	Uji timer dan penyimpanan jawaban.
+6.	Uji penghitungan nilai TWK, TIU, dan TKP.
+7.	Uji verifikasi pembayaran.
+8.	Uji masa berlaku Premium.
+9.	Uji import soal.
+10.	Uji tampilan pada smartphone.
+Jika ada layanan eksternal yang memerlukan API key, akun, atau konfigurasi manual, buat halaman pengaturan dan jelaskan secara spesifik apa yang perlu dihubungkan. Jangan mengarang bahwa integrasi sudah berjalan.
+Jika ada ketentuan resmi SKD yang belum diverifikasi, buat konfigurasi yang dapat diubah admin dan tandai sebagai belum diverifikasi. Jangan menyebut simulasi sebagai sistem resmi BKN.
+Hasil akhir yang diharapkan: LOGIN CPNS merupakan web application lengkap, responsif, aman, memiliki backend dan database, serta dapat digunakan oleh peserta dan dikelola oleh Super Admin.
+Nama aplikasi harus tetap LOGIN CPNS.
+
