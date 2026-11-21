@@ -1,0 +1,413 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==================== GLOBAL SECURITY PRIMITIVES ====================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'loginbimbelasn@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // ==================== ENTITY VALIDATION BLUEPRINTS ====================
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'uid', 'full_name', 'email', 'role', 'account_status', 'membership_type', 'created_at']) &&
+        data.keys().hasOnly([
+          'id', 'uid', 'full_name', 'email', 'phone', 'photo_url', 'role',
+          'account_status', 'membership_type', 'premium_start', 'premium_end',
+          'created_at', 'updated_at', 'targetAgency', 'targetFormation',
+          'is_affiliate', 'affiliate_status', 'affiliate_joined_at',
+          'affiliate_requested_at', 'affiliate_approved_at', 'affiliate_approved_by',
+          'affiliate_rejection_reason', 'affiliate_motivation', 'affiliate_terms_accepted_at',
+          'referral_code', 'affiliate_bank_name', 'affiliate_account_number',
+          'affiliate_account_holder', 'registered_referral_code',
+          'info_source', 'education', 'current_job', 'address', 'age', 'password_hash'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.full_name is string && data.full_name.size() >= 1 && data.full_name.size() <= 120 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.role in ['SUPER_ADMIN', 'MEMBER'] &&
+        data.account_status in ['ACTIVE', 'INACTIVE'] &&
+        data.membership_type in ['FREE', 'STANDAR', 'PREMIUM', 'INTENSIF'] &&
+        data.created_at is string && data.created_at.size() <= 64 &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 32)) &&
+        (!('photo_url' in data) || (data.photo_url is string && data.photo_url.size() <= 200000)) &&
+        (!('updated_at' in data) || (data.updated_at is string && data.updated_at.size() <= 64)) &&
+        (!('targetAgency' in data) || (data.targetAgency is string && data.targetAgency.size() <= 160)) &&
+        (!('targetFormation' in data) || (data.targetFormation is string && data.targetFormation.size() <= 160)) &&
+        (!('education' in data) || (data.education is string && data.education.size() <= 120)) &&
+        (!('current_job' in data) || (data.current_job is string && data.current_job.size() <= 120)) &&
+        (!('address' in data) || (data.address is string && data.address.size() <= 250)) &&
+        (!('info_source' in data) || (data.info_source is string && data.info_source.size() <= 120)) &&
+        (!('age' in data) || (data.age is number && data.age >= 10 && data.age <= 100));
+    }
+
+    function isValidQuestion(data) {
+      return data.keys().hasAll(['id', 'category', 'question_text', 'correct_answer', 'is_active', 'created_at']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.category in ['TWK', 'TIU', 'TKP'] &&
+        data.question_text is string && data.question_text.size() <= 5000 &&
+        data.correct_answer in ['A', 'B', 'C', 'D', 'E'] &&
+        data.is_active is bool &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    function isValidPracticePackage(data) {
+      return data.keys().hasAll(['id', 'title', 'package_type', 'category', 'access_tier', 'is_active', 'created_at']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.title is string && data.title.size() <= 200 &&
+        data.package_type in ['TRYOUT_SKD', 'LATIHAN_HARIAN', 'DRILL_KATEGORI', 'TRYOUT_AKBAR'] &&
+        data.category in ['TWK', 'TIU', 'TKP', 'CAMPURAN'] &&
+        data.access_tier in ['GRATIS', 'PREMIUM', 'PLATINUM'] &&
+        data.is_active is bool &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    function isValidMaterial(data) {
+      return data.keys().hasAll(['id', 'title', 'category', 'is_premium', 'is_active', 'created_at']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.title is string && data.title.size() <= 200 &&
+        data.category in ['TWK', 'TIU', 'TKP', 'STRATEGI'] &&
+        data.is_premium is bool &&
+        data.is_active is bool &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    function isValidShortVideo(data) {
+      return data.keys().hasAll(['id', 'title', 'category', 'source_type', 'is_premium', 'is_active', 'created_at']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.title is string && data.title.size() <= 200 &&
+        data.category in ['KIAT_BELAJAR', 'TIU', 'TWK', 'TKP', 'STRATEGI'] &&
+        data.source_type in ['UPLOAD', 'URL'] &&
+        data.is_premium is bool &&
+        data.is_active is bool &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    function isValidPackage(data) {
+      return data.keys().hasAll(['id', 'package_name', 'price', 'duration_days', 'is_active']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.package_name is string && data.package_name.size() <= 160 &&
+        data.price is number && data.price >= 0 &&
+        data.duration_days is number && data.duration_days > 0 &&
+        data.is_active is bool;
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasAll(['id', 'user_id', 'user_name', 'user_email', 'package_id', 'package_name', 'amount', 'payment_method', 'status', 'created_at']) &&
+        data.keys().hasOnly([
+          'id', 'user_id', 'user_name', 'user_email', 'user_phone', 'user_registered_at',
+          'package_id', 'package_name', 'original_amount', 'promo_discount',
+          'referral_code', 'referral_discount', 'amount', 'affiliate_user_id',
+          'affiliate_name', 'affiliate_commission', 'commission_status',
+          'commission_paid_at', 'commission_paid_by', 'commission_proof_url',
+          'payment_method', 'bank_name', 'sender_name', 'proof_url', 'status',
+          'verified_by', 'verified_at', 'rejection_reason', 'created_at'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.user_id is string && data.user_id.size() >= 1 && data.user_id.size() <= 128 &&
+        data.user_name is string && data.user_name.size() <= 120 &&
+        data.user_email is string && data.user_email.size() <= 160 &&
+        data.package_id is string && data.package_id.size() <= 128 &&
+        data.package_name is string && data.package_name.size() <= 160 &&
+        data.amount is number && data.amount >= 0 &&
+        data.payment_method in ['TRANSFER_BANK', 'QRIS', 'COD_WHATSAPP'] &&
+        data.status in ['WAITING_PAYMENT', 'WAITING_VERIFICATION', 'APPROVED', 'REJECTED'] &&
+        data.created_at is string && data.created_at.size() <= 64 &&
+        (!('proof_url' in data) || (data.proof_url is string && data.proof_url.size() <= 500000));
+    }
+
+    function isValidWithdrawal(data) {
+      return data.keys().hasAll(['id', 'affiliate_user_id', 'affiliate_name', 'referral_code', 'amount', 'bank_name', 'account_number', 'account_holder', 'status', 'requested_at']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.affiliate_user_id is string && data.affiliate_user_id.size() >= 1 && data.affiliate_user_id.size() <= 128 &&
+        data.affiliate_name is string && data.affiliate_name.size() <= 120 &&
+        data.referral_code is string && data.referral_code.size() <= 32 &&
+        data.amount is number && data.amount > 0 &&
+        data.bank_name is string && data.bank_name.size() <= 80 &&
+        data.account_number is string && data.account_number.size() <= 64 &&
+        data.account_holder is string && data.account_holder.size() <= 120 &&
+        data.status in ['REQUESTED', 'PAID', 'CANCELLED'] &&
+        data.requested_at is string && data.requested_at.size() <= 64;
+    }
+
+    function isValidGroupSession(data) {
+      return data.keys().hasAll(['id', 'title', 'status', 'created_at']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.title is string && data.title.size() <= 200 &&
+        data.status in ['UPCOMING', 'ACTIVE', 'FINISHED'] &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    function isValidExamResult(data) {
+      return data.keys().hasAll(['id', 'exam_id', 'user_id', 'user_name', 'exam_title', 'completed_at', 'total_score', 'pass_status']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.exam_id is string && data.exam_id.size() <= 128 &&
+        data.user_id is string && data.user_id.size() >= 1 && data.user_id.size() <= 128 &&
+        data.user_name is string && data.user_name.size() <= 120 &&
+        data.exam_title is string && data.exam_title.size() <= 200 &&
+        data.completed_at is string && data.completed_at.size() <= 64 &&
+        data.total_score is number && data.total_score >= 0 &&
+        data.pass_status in ['MEMENUHI_AMBANG_BATAS', 'BELUM_MEMENUHI_AMBANG_BATAS'];
+    }
+
+    function isValidAppSettings(data) {
+      return data.keys().hasAll(['app_name', 'headline', 'admin_whatsapp', 'maintenance_mode']) &&
+        data.app_name is string && data.app_name.size() <= 120 &&
+        data.headline is string && data.headline.size() <= 400 &&
+        data.admin_whatsapp is string && data.admin_whatsapp.size() <= 32 &&
+        data.maintenance_mode is bool;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'title', 'message', 'type', 'is_read', 'created_at']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.title is string && data.title.size() <= 200 &&
+        data.message is string && data.message.size() <= 1000 &&
+        data.type in ['PAYMENT', 'PREMIUM', 'TRYOUT', 'ANNOUNCEMENT'] &&
+        data.is_read is bool &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    function isValidAnnouncement(data) {
+      return data.keys().hasAll(['id', 'title', 'category', 'is_active', 'created_at']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.title is string && data.title.size() <= 200 &&
+        data.category in ['JADWAL_CPNS', 'MAINTENANCE', 'TRYOUT', 'BERITA_UMUM'] &&
+        data.is_active is bool &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    function isValidEmailLog(data) {
+      return data.keys().hasAll(['id', 'recipient_user_id', 'recipient_email', 'sender_email', 'subject', 'body', 'is_read', 'created_at']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.recipient_user_id is string && data.recipient_user_id.size() >= 1 && data.recipient_user_id.size() <= 128 &&
+        data.recipient_email is string && data.recipient_email.size() <= 160 &&
+        data.sender_email is string && data.sender_email.size() <= 160 &&
+        data.subject is string && data.subject.size() <= 250 &&
+        data.body is string && data.body.size() <= 10000 &&
+        data.is_read is bool &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['id', 'actor_id', 'action', 'entity_type', 'entity_id', 'created_at']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.actor_id is string && data.actor_id.size() <= 128 &&
+        data.action is string && data.action.size() <= 80 &&
+        data.entity_type is string && data.entity_type.size() <= 80 &&
+        data.entity_id is string && data.entity_id.size() <= 128 &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    // ==================== COLLECTION MATCH BLOCKS ====================
+    match /admins/{uid} {
+      allow get: if isVerified() && isValidId(uid) && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidId(uid);
+    }
+
+    match /users/{userId} {
+      allow get: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerified() && isValidId(userId) && isValidUser(incoming()) && (
+        isAdmin() ||
+        (
+          request.auth.uid == userId &&
+          incoming().uid == request.auth.uid &&
+          incoming().role == 'MEMBER' &&
+          incoming().membership_type == 'FREE' &&
+          incoming().account_status == 'ACTIVE'
+        )
+      );
+      allow update: if isVerified() && isValidId(userId) && isValidUser(incoming()) && (
+        isAdmin() ||
+        (
+          request.auth.uid == userId &&
+          incoming().uid == existing().uid &&
+          incoming().role == existing().role &&
+          incoming().membership_type == existing().membership_type &&
+          incoming().account_status == existing().account_status &&
+          incoming().created_at == existing().created_at &&
+          (!('affiliate_status' in incoming().diff(existing()).affectedKeys()) || incoming().affiliate_status == 'PENDING') &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'full_name', 'phone', 'photo_url', 'targetAgency', 'targetFormation',
+            'education', 'current_job', 'address', 'age', 'updated_at',
+            'is_affiliate', 'affiliate_status', 'affiliate_requested_at',
+            'affiliate_motivation', 'affiliate_terms_accepted_at', 'referral_code',
+            'affiliate_bank_name', 'affiliate_account_number', 'affiliate_account_holder'
+          ])
+        )
+      );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /questions/{questionId} {
+      allow get: if isVerified() && isValidId(questionId) && (existing().is_active == true || isAdmin());
+      allow list: if isVerified() && (existing().is_active == true || isAdmin());
+      allow create, update: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming());
+      allow delete: if isAdmin() && isValidId(questionId);
+    }
+
+    match /practice_packages/{packageId} {
+      allow get: if isVerified() && isValidId(packageId) && (existing().is_active == true || isAdmin());
+      allow list: if isVerified() && (existing().is_active == true || isAdmin());
+      allow create, update: if isAdmin() && isValidId(packageId) && isValidPracticePackage(incoming());
+      allow delete: if isAdmin() && isValidId(packageId);
+    }
+
+    match /materials/{materialId} {
+      allow get: if isVerified() && isValidId(materialId) && (existing().is_active == true || isAdmin());
+      allow list: if isVerified() && (existing().is_active == true || isAdmin());
+      allow create, update: if isAdmin() && isValidId(materialId) && isValidMaterial(incoming());
+      allow delete: if isAdmin() && isValidId(materialId);
+    }
+
+    match /short_videos/{videoId} {
+      allow get: if isVerified() && isValidId(videoId) && (existing().is_active == true || isAdmin());
+      allow list: if isVerified() && (existing().is_active == true || isAdmin());
+      allow create, update: if isAdmin() && isValidId(videoId) && isValidShortVideo(incoming());
+      allow delete: if isAdmin() && isValidId(videoId);
+    }
+
+    match /packages/{packageId} {
+      allow get: if isValidId(packageId) && (existing().is_active == true || isAdmin());
+      allow list: if existing().is_active == true || isAdmin();
+      allow create, update: if isAdmin() && isValidId(packageId) && isValidPackage(incoming());
+      allow delete: if isAdmin() && isValidId(packageId);
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isVerified() && isValidId(paymentId) && (existing().user_id == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (existing().user_id == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(paymentId) && isValidPayment(incoming()) && (
+        isAdmin() ||
+        (incoming().user_id == request.auth.uid && incoming().status == 'WAITING_VERIFICATION')
+      );
+      allow update: if isVerified() && isValidId(paymentId) && isValidPayment(incoming()) && (
+        isAdmin() ||
+        (
+          existing().user_id == request.auth.uid &&
+          existing().status == 'WAITING_PAYMENT' &&
+          incoming().user_id == existing().user_id &&
+          incoming().amount == existing().amount &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['proof_url', 'sender_name', 'bank_name', 'status'])
+        )
+      );
+      allow delete: if isAdmin() && isValidId(paymentId);
+    }
+
+    match /commission_withdrawals/{withdrawalId} {
+      allow get: if isVerified() && isValidId(withdrawalId) && (existing().affiliate_user_id == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (existing().affiliate_user_id == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(withdrawalId) && isValidWithdrawal(incoming()) && (
+        isAdmin() ||
+        (incoming().affiliate_user_id == request.auth.uid && incoming().status == 'REQUESTED')
+      );
+      allow update: if isAdmin() && isValidId(withdrawalId) && isValidWithdrawal(incoming());
+      allow delete: if isAdmin() && isValidId(withdrawalId);
+    }
+
+    match /group_sessions/{sessionId} {
+      allow get: if isValidId(sessionId);
+      allow list: if existing().status in ['UPCOMING', 'ACTIVE', 'FINISHED'] || isAdmin();
+      allow create, update: if isAdmin() && isValidId(sessionId) && isValidGroupSession(incoming());
+      allow delete: if isAdmin() && isValidId(sessionId);
+    }
+
+    match /exam_results/{resultId} {
+      allow get: if isVerified() && isValidId(resultId) && (existing().user_id == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (existing().user_id == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(resultId) && isValidExamResult(incoming()) && (
+        isAdmin() || incoming().user_id == request.auth.uid
+      );
+      allow update: if isAdmin() && isValidId(resultId) && isValidExamResult(incoming());
+      allow delete: if isAdmin() && isValidId(resultId);
+    }
+
+    match /app_settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if false;
+      allow create, update: if isAdmin() && isValidId(settingId) && isValidAppSettings(incoming());
+      allow delete: if isAdmin() && isValidId(settingId);
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isVerified() && isValidId(notificationId) && (
+        existing().user_id == request.auth.uid || !('user_id' in existing()) || existing().user_id == null || isAdmin()
+      );
+      allow list: if isVerified() && (
+        existing().user_id == request.auth.uid || !('user_id' in existing()) || existing().user_id == null || isAdmin()
+      );
+      allow create: if isVerified() && isValidId(notificationId) && isValidNotification(incoming()) && (
+        isAdmin() || incoming().user_id == request.auth.uid
+      );
+      allow update: if isVerified() && isValidId(notificationId) && isValidNotification(incoming()) && (
+        isAdmin() || (
+          existing().user_id == request.auth.uid &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['is_read'])
+        )
+      );
+      allow delete: if isAdmin() && isValidId(notificationId);
+    }
+
+    match /announcements/{announcementId} {
+      allow get: if isValidId(announcementId) && (existing().is_active == true || isAdmin());
+      allow list: if existing().is_active == true || isAdmin();
+      allow create, update: if isAdmin() && isValidId(announcementId) && isValidAnnouncement(incoming());
+      allow delete: if isAdmin() && isValidId(announcementId);
+    }
+
+    match /email_logs/{logId} {
+      allow get: if isVerified() && isValidId(logId) && (existing().recipient_user_id == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (existing().recipient_user_id == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(logId) && isValidEmailLog(incoming()) && (
+        isAdmin() || incoming().recipient_user_id == request.auth.uid
+      );
+      allow update: if isVerified() && isValidId(logId) && isValidEmailLog(incoming()) && (
+        isAdmin() || (
+          existing().recipient_user_id == request.auth.uid &&
+          incoming().recipient_user_id == existing().recipient_user_id &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['is_read'])
+        )
+      );
+      allow delete: if isAdmin() && isValidId(logId);
+    }
+
+    match /audit_logs/{logId} {
+      allow get, list: if isAdmin();
+      allow create: if isVerified() && isValidId(logId) && isValidAuditLog(incoming()) && (
+        isAdmin() || incoming().actor_id == request.auth.uid
+      );
+      allow update: if isAdmin() && isValidId(logId) && isValidAuditLog(incoming());
+      allow delete: if isAdmin() && isValidId(logId);
+    }
+  }
+}

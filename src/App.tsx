@@ -16,6 +16,7 @@ import { SkdSkbCalculatorView } from './components/kalkulator/SkdSkbCalculatorVi
 import { CatEngine } from './components/cat/CatEngine';
 import { FloatingWhatsAppButton } from './components/layout/FloatingWhatsAppButton';
 import { ExamStartConfirmModal } from './components/cat/ExamStartConfirmModal';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 function AppContent() {
   const { currentUser, activeView, examSession } = useApp();
@@ -92,8 +93,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }

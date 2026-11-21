@@ -1,0 +1,343 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Akun peserta atau super admin LOGIN CPNS yang terhubung dengan Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "full_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "photo_url": { "type": "string", "maxLength": 200000 },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "MEMBER"] },
+        "account_status": { "type": "string", "enum": ["ACTIVE", "INACTIVE"] },
+        "membership_type": { "type": "string", "enum": ["FREE", "STANDAR", "PREMIUM", "INTENSIF"] },
+        "premium_start": { "type": "string", "maxLength": 64 },
+        "premium_end": { "type": "string", "maxLength": 64 },
+        "targetAgency": { "type": "string", "maxLength": 160 },
+        "targetFormation": { "type": "string", "maxLength": 160 },
+        "education": { "type": "string", "maxLength": 120 },
+        "current_job": { "type": "string", "maxLength": 120 },
+        "address": { "type": "string", "maxLength": 250 },
+        "age": { "type": "number" },
+        "is_affiliate": { "type": "boolean" },
+        "affiliate_status": { "type": "string", "enum": ["NONE", "PENDING", "APPROVED", "REJECTED"] },
+        "referral_code": { "type": "string", "maxLength": 32 },
+        "registered_referral_code": { "type": "string", "maxLength": 32 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "full_name", "email", "role", "account_status", "membership_type", "created_at"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Bank soal CAT SKD CPNS (TWK, TIU, TKP).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "category": { "type": "string", "enum": ["TWK", "TIU", "TKP"] },
+        "topic": { "type": "string", "maxLength": 160 },
+        "question_text": { "type": "string", "maxLength": 5000 },
+        "option_a": { "type": "string", "maxLength": 1000 },
+        "option_b": { "type": "string", "maxLength": 1000 },
+        "option_c": { "type": "string", "maxLength": 1000 },
+        "option_d": { "type": "string", "maxLength": 1000 },
+        "option_e": { "type": "string", "maxLength": 1000 },
+        "correct_answer": { "type": "string", "enum": ["A", "B", "C", "D", "E"] },
+        "weight_a": { "type": "number" },
+        "weight_b": { "type": "number" },
+        "weight_c": { "type": "number" },
+        "weight_d": { "type": "number" },
+        "weight_e": { "type": "number" },
+        "explanation": { "type": "string", "maxLength": 5000 },
+        "difficulty": { "type": "string", "enum": ["Mudah", "Sedang", "Sukar"] },
+        "is_active": { "type": "boolean" },
+        "package_id": { "type": "string", "maxLength": 128 },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "category", "question_text", "correct_answer", "is_active", "created_at"]
+    },
+    "PracticePackage": {
+      "title": "PracticePackage",
+      "description": "Paket tryout dan latihan soal SKD CPNS.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "package_type": { "type": "string", "enum": ["TRYOUT_SKD", "LATIHAN_HARIAN", "DRILL_KATEGORI", "TRYOUT_AKBAR"] },
+        "category": { "type": "string", "enum": ["TWK", "TIU", "TKP", "CAMPURAN"] },
+        "access_tier": { "type": "string", "enum": ["GRATIS", "PREMIUM", "PLATINUM"] },
+        "question_count": { "type": "number" },
+        "duration_minutes": { "type": "number" },
+        "is_active": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "package_type", "category", "access_tier", "is_active", "created_at"]
+    },
+    "Material": {
+      "title": "Material",
+      "description": "Modul materi belajar SKD CPNS.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "enum": ["TWK", "TIU", "TKP", "STRATEGI"] },
+        "summary": { "type": "string", "maxLength": 1000 },
+        "content": { "type": "string", "maxLength": 50000 },
+        "is_premium": { "type": "boolean" },
+        "is_active": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "category", "is_premium", "is_active", "created_at"]
+    },
+    "ShortVideo": {
+      "title": "ShortVideo",
+      "description": "Video singkat pembahasan dan kiat belajar.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "enum": ["KIAT_BELAJAR", "TIU", "TWK", "TKP", "STRATEGI"] },
+        "description": { "type": "string", "maxLength": 2000 },
+        "source_type": { "type": "string", "enum": ["UPLOAD", "URL"] },
+        "is_premium": { "type": "boolean" },
+        "is_active": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "category", "source_type", "is_premium", "is_active", "created_at"]
+    },
+    "PremiumPackage": {
+      "title": "PremiumPackage",
+      "description": "Paket keanggotaan bimbel LOGIN CPNS.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "tier_key": { "type": "string", "enum": ["STANDAR", "PREMIUM", "INTENSIF"] },
+        "package_name": { "type": "string", "maxLength": 160 },
+        "price": { "type": "number" },
+        "original_price": { "type": "number" },
+        "duration_days": { "type": "number" },
+        "description": { "type": "string", "maxLength": 1000 },
+        "is_active": { "type": "boolean" }
+      },
+      "required": ["id", "package_name", "price", "duration_days", "is_active"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Transaksi pembayaran upgrade paket peserta.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "user_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "user_name": { "type": "string", "maxLength": 120 },
+        "user_email": { "type": "string", "format": "email", "maxLength": 160 },
+        "package_id": { "type": "string", "maxLength": 128 },
+        "package_name": { "type": "string", "maxLength": 160 },
+        "amount": { "type": "number" },
+        "payment_method": { "type": "string", "enum": ["TRANSFER_BANK", "QRIS", "COD_WHATSAPP"] },
+        "proof_url": { "type": "string", "maxLength": 500000 },
+        "status": { "type": "string", "enum": ["WAITING_PAYMENT", "WAITING_VERIFICATION", "APPROVED", "REJECTED"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "user_id", "user_name", "user_email", "package_id", "package_name", "amount", "payment_method", "status", "created_at"]
+    },
+    "CommissionWithdrawal": {
+      "title": "CommissionWithdrawal",
+      "description": "Pengajuan pencairan komisi mitra afiliasi.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "affiliate_user_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "affiliate_name": { "type": "string", "maxLength": 120 },
+        "referral_code": { "type": "string", "maxLength": 32 },
+        "amount": { "type": "number" },
+        "bank_name": { "type": "string", "maxLength": 80 },
+        "account_number": { "type": "string", "maxLength": 64 },
+        "account_holder": { "type": "string", "maxLength": 120 },
+        "status": { "type": "string", "enum": ["REQUESTED", "PAID", "CANCELLED"] },
+        "requested_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "affiliate_user_id", "affiliate_name", "referral_code", "amount", "bank_name", "account_number", "account_holder", "status", "requested_at"]
+    },
+    "GroupSession": {
+      "title": "GroupSession",
+      "description": "Jadwal Tryout Bareng dan Bimbel Zoom Malam.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "exam_type": { "type": "string" },
+        "question_count": { "type": "number" },
+        "duration_minutes": { "type": "number" },
+        "start_at": { "type": "string", "format": "date-time" },
+        "end_at": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["UPCOMING", "ACTIVE", "FINISHED"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "status", "created_at"]
+    },
+    "ExamResult": {
+      "title": "ExamResult",
+      "description": "Hasil ujian simulasi CAT SKD peserta.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "exam_id": { "type": "string", "maxLength": 128 },
+        "user_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "user_name": { "type": "string", "maxLength": 120 },
+        "exam_title": { "type": "string", "maxLength": 200 },
+        "exam_type": { "type": "string" },
+        "completed_at": { "type": "string", "format": "date-time" },
+        "twk_score": { "type": "number" },
+        "tiu_score": { "type": "number" },
+        "tkp_score": { "type": "number" },
+        "total_score": { "type": "number" },
+        "pass_status": { "type": "string", "enum": ["MEMENUHI_AMBANG_BATAS", "BELUM_MEMENUHI_AMBANG_BATAS"] }
+      },
+      "required": ["id", "exam_id", "user_id", "user_name", "exam_title", "completed_at", "total_score", "pass_status"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Pengaturan aplikasi global, passing grade, rekening pembayaran, dan kalkulator SKD.",
+      "type": "object",
+      "properties": {
+        "app_name": { "type": "string", "maxLength": 120 },
+        "headline": { "type": "string", "maxLength": 400 },
+        "admin_whatsapp": { "type": "string", "maxLength": 32 },
+        "admin_email": { "type": "string", "maxLength": 160 },
+        "maintenance_mode": { "type": "boolean" }
+      },
+      "required": ["app_name", "headline", "admin_whatsapp", "maintenance_mode"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "Notifikasi in-app peserta dan broadcast.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "user_id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 1000 },
+        "type": { "type": "string", "enum": ["PAYMENT", "PREMIUM", "TRYOUT", "ANNOUNCEMENT"] },
+        "is_read": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "message", "type", "is_read", "created_at"]
+    },
+    "AdminAnnouncement": {
+      "title": "AdminAnnouncement",
+      "description": "Pengumuman resmi dan jadwal CPNS dari admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "summary": { "type": "string", "maxLength": 500 },
+        "content": { "type": "string", "maxLength": 10000 },
+        "category": { "type": "string", "enum": ["JADWAL_CPNS", "MAINTENANCE", "TRYOUT", "BERITA_UMUM"] },
+        "is_pinned": { "type": "boolean" },
+        "is_active": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "category", "is_active", "created_at"]
+    },
+    "EmailNotificationLog": {
+      "title": "EmailNotificationLog",
+      "description": "Log pesan email transaksi resmi peserta.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "recipient_user_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "recipient_name": { "type": "string", "maxLength": 120 },
+        "recipient_email": { "type": "string", "format": "email", "maxLength": 160 },
+        "sender_email": { "type": "string", "format": "email", "maxLength": 160 },
+        "subject": { "type": "string", "maxLength": 250 },
+        "body": { "type": "string", "maxLength": 10000 },
+        "category": { "type": "string" },
+        "is_read": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "recipient_user_id", "recipient_email", "sender_email", "subject", "body", "is_read", "created_at"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Catatan aktivitas sistem untuk audit admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "actor_id": { "type": "string", "maxLength": 128 },
+        "actor_name": { "type": "string", "maxLength": 120 },
+        "action": { "type": "string", "maxLength": 80 },
+        "entity_type": { "type": "string", "maxLength": 80 },
+        "entity_id": { "type": "string", "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 1000 },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "actor_id", "action", "entity_type", "entity_id", "created_at"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Profil pengguna LOGIN CPNS (terisolasi per pemilik atau admin)."
+    },
+    "/questions/{questionId}": {
+      "schema": { "$ref": "#/entities/Question" },
+      "description": "Bank soal simulasi CAT SKD."
+    },
+    "/practice_packages/{packageId}": {
+      "schema": { "$ref": "#/entities/PracticePackage" },
+      "description": "Daftar paket latihan & tryout SKD."
+    },
+    "/materials/{materialId}": {
+      "schema": { "$ref": "#/entities/Material" },
+      "description": "Modul belajar PDF & ringkasan SKD."
+    },
+    "/short_videos/{videoId}": {
+      "schema": { "$ref": "#/entities/ShortVideo" },
+      "description": "Koleksi short video pembelajaran."
+    },
+    "/packages/{packageId}": {
+      "schema": { "$ref": "#/entities/PremiumPackage" },
+      "description": "Katalog paket keanggotaan (Standar, Premium, Intensif)."
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Riwayat pengajuan pembayaran peserta."
+    },
+    "/commission_withdrawals/{withdrawalId}": {
+      "schema": { "$ref": "#/entities/CommissionWithdrawal" },
+      "description": "Riwayat pengajuan pencairan komisi mitra afiliasi."
+    },
+    "/group_sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/GroupSession" },
+      "description": "Jadwal sesi Tryout Bareng & Bimbel Zoom."
+    },
+    "/exam_results/{resultId}": {
+      "schema": { "$ref": "#/entities/ExamResult" },
+      "description": "Riwayat hasil ujian CAT peserta."
+    },
+    "/app_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/AppSettings" },
+      "description": "Konfigurasi global aplikasi LOGIN CPNS."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/AppNotification" },
+      "description": "Notifikasi in-app peserta."
+    },
+    "/announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/AdminAnnouncement" },
+      "description": "Pengumuman resmi CPNS oleh admin."
+    },
+    "/email_logs/{logId}": {
+      "schema": { "$ref": "#/entities/EmailNotificationLog" },
+      "description": "Log email transaksi peserta."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Log audit aktivitas sistem (khusus admin)."
+    }
+  }
+}

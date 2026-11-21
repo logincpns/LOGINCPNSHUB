@@ -44,6 +44,17 @@ import {
   SEED_EMAIL_LOGS
 } from '../data/mockData';
 import { deleteVideoBlob, clearAllVideoBlobs } from '../utils/videoStorage';
+import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
+import { auth, googleAuthProvider, OperationType } from '../lib/firebase';
+import {
+  ensureFirebaseUserProfile,
+  fetchPublicCatalog,
+  fetchAuthenticatedData,
+  seedInitialFirestoreIfAdmin,
+  syncDoc,
+  removeDoc,
+  toFirestoreUserPayload
+} from '../lib/firestoreSync';
 
 export const DEFAULT_REFERRAL_CODE = 'LOGINCPNS';
 export const REFERRAL_DISCOUNT_AMOUNT = 20000;
@@ -294,6 +305,7 @@ interface AppContextType {
 
   // Auth
   login: (email: string, password: string) => { success: boolean; message: string };
+  loginWithGoogle: () => Promise<{ success: boolean; message: string }>;
   register: (
     name: string,
     email: string,
@@ -711,6 +723,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => setStorage(STORAGE_KEYS.NOTIFS, notifications), [notifications]);
   useEffect(() => setStorage(STORAGE_KEYS.ANNOUNCEMENTS, announcements), [announcements]);
 
+  // Sync public catalog and Firebase Auth state with Cloud Firestore
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const pub = await fetchPublicCatalog();
+        if (!active) return;
+        if (pub.packages && pub.packages.length > 0) setPackages(pub.packages);
+        if (pub.settings) setSettings(prev => ({ ...prev, ...pub.settings }));
+        if (pub.announcements && pub.announcements.length > 0) setAnnouncements(pub.announcements);
+        if (pub.groupSessions && pub.groupSessions.length > 0) setGroupSessions(pub.groupSessions);
+      } catch (err) {
+        console.warn('Public catalog sync skipped:', err);
+      }
+    })();
+
+    const unsubscribe = onAuthStateChanged(auth, async fbUser => {
+      if (!fbUser || !fbUser.emailVerified || !active) return;
+      try {
+        const profile = await ensureFirebaseUserProfile(fbUser, users);
+        if (!active || profile.account_status === 'INACTIVE') return;
+
+        setUsers(prev =>
+          prev.some(u => u.id === profile.id)
+            ? prev.map(u => (u.id === profile.id ? profile : u))
+            : [profile, ...prev]
+        );
+        setCurrentUser(profile);
+        setActiveView(prev =>
+          prev === 'landing' ? (profile.role === 'SUPER_ADMIN' ? 'admin-dashboard' : 'dashboard') : prev
+        );
+
+        await seedInitialFirestoreIfAdmin(fbUser, {
+          packages,
+          practicePackages,
+          questions,
+          materials,
+          shortVideos,
+          groupSessions,
+          announcements,
+          settings
+        });
+
+        const synced = await fetchAuthenticatedData(fbUser);
+        if (!active) return;
+        if (synced.users && synced.users.length > 0) setUsers(synced.users);
+        if (synced.questions && synced.questions.length > 0) setQuestions(synced.questions);
+        if (synced.practicePackages && synced.practicePackages.length > 0) setPracticePackages(synced.practicePackages);
+        if (synced.materials && synced.materials.length > 0) setMaterials(synced.materials);
+        if (synced.shortVideos && synced.shortVideos.length > 0) setShortVideos(synced.shortVideos);
+        if (synced.packages && synced.packages.length > 0) setPackages(synced.packages);
+        if (synced.payments && synced.payments.length > 0) setPayments(synced.payments);
+        if (synced.withdrawals && synced.withdrawals.length > 0) setCommissionWithdrawals(synced.withdrawals);
+        if (synced.emailLogs && synced.emailLogs.length > 0) setEmailLogs(synced.emailLogs);
+        if (synced.results && synced.results.length > 0) setResults(synced.results);
+        if (synced.notifications && synced.notifications.length > 0) setNotifications(synced.notifications);
+        if (synced.announcements && synced.announcements.length > 0) setAnnouncements(synced.announcements);
+        if (synced.groupSessions && synced.groupSessions.length > 0) setGroupSessions(synced.groupSessions);
+        if (synced.auditLogs && synced.auditLogs.length > 0) setAuditLogs(synced.auditLogs);
+      } catch (err) {
+        console.warn('Firestore auth sync error:', err);
+      }
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
   const addAudit = (action: string, entityType: string, entityId: string, details: string) => {
     const log: AuditLog = {
       id: `log-${Date.now()}`,
@@ -723,6 +805,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: new Date().toISOString()
     };
     setAuditLogs(prev => [log, ...prev]);
+    void syncDoc('audit_logs', log.id, log as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
   };
 
   const addNotification = (title: string, message: string, type: 'PAYMENT' | 'PREMIUM' | 'TRYOUT' | 'ANNOUNCEMENT', userId?: string) => {
@@ -736,6 +819,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       is_read: false
     };
     setNotifications(prev => [notif, ...prev]);
+    if (notif.user_id) {
+      void syncDoc('notifications', notif.id, notif as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
+    }
   };
 
   const recordEmailLog = (params: {
@@ -762,6 +848,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: new Date().toISOString()
     };
     setEmailLogs(prev => [entry, ...prev]);
+    void syncDoc('email_logs', entry.id, entry as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
     addAudit(
       'EMAIL_NOTIFICATION_LOG',
       'EMAIL_LOGS',
@@ -814,6 +901,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAuthModalMode('NONE');
     addAudit('LOGIN', 'USERS', found.id, `Pengguna ${found.full_name} berhasil masuk (${found.role})`);
     return { success: true, message: 'Login berhasil.' };
+  };
+
+  const loginWithGoogle = async () => {
+    if (currentUser) {
+      return {
+        success: false,
+        message: `Anda masih masuk sebagai ${currentUser.full_name}. Silakan keluar (Logout) terlebih dahulu untuk beralih ke akun lain.`
+      };
+    }
+    try {
+      const credential = await signInWithPopup(auth, googleAuthProvider);
+      const fbUser = credential.user;
+      const profile = await ensureFirebaseUserProfile(fbUser, users);
+      if (profile.account_status === 'INACTIVE') {
+        await signOut(auth);
+        return { success: false, message: 'Akun Anda sedang dinonaktifkan. Hubungi admin di WhatsApp 081312139893.' };
+      }
+      setUsers(prev =>
+        prev.some(u => u.id === profile.id)
+          ? prev.map(u => (u.id === profile.id ? profile : u))
+          : [profile, ...prev]
+      );
+      setCurrentUser(profile);
+      setActiveView(profile.role === 'SUPER_ADMIN' ? 'admin-dashboard' : 'dashboard');
+      setAuthModalMode('NONE');
+      addAudit('LOGIN_GOOGLE', 'USERS', profile.id, `Pengguna ${profile.full_name} berhasil masuk dengan Google`);
+      return { success: true, message: 'Login Google berhasil.' };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal masuk dengan Google.';
+      return { success: false, message };
+    }
   };
 
   const register = (
@@ -914,6 +1032,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // ignore
     }
+    void signOut(auth).catch(() => {});
     setExamSession(null);
     setPendingExamLaunch(null);
     setSelectedResultReview(null);
@@ -928,6 +1047,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updated = { ...currentUser, ...data, updated_at: new Date().toISOString() };
     setCurrentUser(updated);
     setUsers(prev => prev.map(u => (u.id === currentUser.id ? updated : u)));
+    void syncDoc('users', updated.id, toFirestoreUserPayload(updated), OperationType.UPDATE).catch(() => {});
     addAudit('UPDATE_PROFILE', 'USERS', currentUser.id, 'Memperbarui data profil');
   };
 
@@ -2009,19 +2129,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: new Date().toISOString()
     };
     setPracticePackages(prev => [newPkg, ...prev]);
+    void syncDoc('practice_packages', newPkg.id, newPkg as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
     addAudit('CREATE_PACKAGE', 'PRACTICE_PACKAGES', newPkg.id, `Membuat paket soal baru: ${newPkg.title}`);
   };
 
   const updatePracticePackage = (pkg: PracticePackage) => {
+    const updatedPkg = { ...pkg, updated_at: new Date().toISOString() };
     setPracticePackages(prev =>
-      prev.map(p => (p.id === pkg.id ? { ...pkg, updated_at: new Date().toISOString() } : p))
+      prev.map(p => (p.id === pkg.id ? updatedPkg : p))
     );
+    void syncDoc('practice_packages', updatedPkg.id, updatedPkg as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     addAudit('UPDATE_PACKAGE', 'PRACTICE_PACKAGES', pkg.id, `Memperbarui paket soal: ${pkg.title}`);
   };
 
   const deletePracticePackage = (id: string) => {
     const targetPkg = practicePackages.find(p => p.id === id);
     setPracticePackages(prev => prev.filter(p => p.id !== id));
+    void removeDoc('practice_packages', id).catch(() => {});
     setQuestions(prev =>
       prev.map(q => {
         const currentIds = getQuestionPackageIds(q);
@@ -2144,6 +2268,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setResults(prev => [newResult, ...prev]);
+    void syncDoc('exam_results', newResult.id, newResult as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
     setExamSession(null);
     setSelectedResultReview(newResult);
     setActiveView('riwayat-ujian');
@@ -2206,6 +2331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: new Date().toISOString()
     };
     setPayments(prev => [newPayment, ...prev]);
+    void syncDoc('payments', newPayment.id, newPayment as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
     addAudit(
       'SUBMIT_PAYMENT',
       'PAYMENTS',
@@ -2264,6 +2390,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: new Date().toISOString()
     };
     setQuestions(prev => [newQ, ...prev]);
+    void syncDoc('questions', newQ.id, newQ as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
     addAudit('ADD_QUESTION', 'QUESTIONS', newQ.id, `Menambahkan soal [${q.category}] ${q.topic}`);
   };
 
@@ -2271,22 +2398,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const mergedPackageIds = Array.from(
       new Set([...(q.package_ids || []), ...(q.package_id ? [q.package_id] : [])])
     );
+    const updatedQ: Question = {
+      ...q,
+      package_ids: mergedPackageIds,
+      updated_at: new Date().toISOString()
+    };
     setQuestions(prev =>
-      prev.map(item =>
-        item.id === q.id
-          ? {
-              ...q,
-              package_ids: mergedPackageIds,
-              updated_at: new Date().toISOString()
-            }
-          : item
-      )
+      prev.map(item => (item.id === q.id ? updatedQ : item))
     );
+    void syncDoc('questions', updatedQ.id, updatedQ as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     addAudit('UPDATE_QUESTION', 'QUESTIONS', q.id, `Memperbarui soal ID: ${q.id}`);
   };
 
   const deleteQuestion = (id: string) => {
     setQuestions(prev => prev.filter(q => q.id !== id));
+    void removeDoc('questions', id).catch(() => {});
     addAudit('DELETE_QUESTION', 'QUESTIONS', id, `Menghapus soal ID: ${id}`);
   };
 
@@ -2366,18 +2492,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const approvePayment = (paymentId: string) => {
     const payment = payments.find(p => p.id === paymentId);
     if (!payment) return;
+    const approvedPayment: Payment = {
+      ...payment,
+      status: 'APPROVED',
+      verified_by: currentUser?.full_name || 'Super Admin',
+      verified_at: new Date().toISOString()
+    };
     setPayments(prev =>
-      prev.map(p =>
-        p.id === paymentId
-          ? {
-              ...p,
-              status: 'APPROVED',
-              verified_by: currentUser?.full_name || 'Super Admin',
-              verified_at: new Date().toISOString()
-            }
-          : p
-      )
+      prev.map(p => (p.id === paymentId ? approvedPayment : p))
     );
+    void syncDoc('payments', approvedPayment.id, approvedPayment as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     const boughtPkg = packages.find(pk => pk.id === payment.package_id);
     const resolvedTier: MembershipType =
       boughtPkg?.tier_key ||
@@ -2392,6 +2516,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const expiry = new Date();
     expiry.setDate(expiry.getDate() + durationDays);
     const expiryStr = expiry.toISOString();
+
+    const targetBuyer = users.find(u => u.id === payment.user_id);
+    if (targetBuyer) {
+      const updatedBuyer: User = {
+        ...targetBuyer,
+        membership_type: resolvedTier,
+        premium_start: new Date().toISOString(),
+        premium_end: expiryStr
+      };
+      void syncDoc('users', updatedBuyer.id, toFirestoreUserPayload(updatedBuyer), OperationType.UPDATE).catch(() => {});
+    }
 
     setUsers(prev =>
       prev.map(u =>
@@ -2538,6 +2673,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: new Date().toISOString()
     };
     setMaterials(prev => [newM, ...prev]);
+    void syncDoc('materials', newM.id, newM as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
     addAudit('ADD_MATERIAL', 'MATERIALS', newM.id, `Menambah materi: ${m.title}`);
   };
 
@@ -2546,7 +2682,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (prevItem?.video_blob_id && prevItem.video_blob_id !== m.video_blob_id) {
       void deleteVideoBlob(prevItem.video_blob_id);
     }
-    setMaterials(prev => prev.map(item => (item.id === m.id ? { ...m, updated_at: new Date().toISOString() } : item)));
+    const updatedM: Material = { ...m, updated_at: new Date().toISOString() };
+    setMaterials(prev => prev.map(item => (item.id === m.id ? updatedM : item)));
+    void syncDoc('materials', updatedM.id, updatedM as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     addAudit('UPDATE_MATERIAL', 'MATERIALS', m.id, `Mengubah materi: ${m.title}`);
   };
 
@@ -2556,6 +2694,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       void deleteVideoBlob(prevItem.video_blob_id);
     }
     setMaterials(prev => prev.filter(item => item.id !== id));
+    void removeDoc('materials', id).catch(() => {});
     addAudit('DELETE_MATERIAL', 'MATERIALS', id, `Menghapus materi ID: ${id}`);
   };
 
@@ -2567,6 +2706,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: new Date().toISOString()
     };
     setShortVideos(prev => [newVideo, ...prev]);
+    void syncDoc('short_videos', newVideo.id, newVideo as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
     addAudit('ADD_SHORT_VIDEO', 'SHORT_VIDEOS', newVideo.id, `Menambah short video: ${v.title}`);
   };
 
@@ -2575,9 +2715,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (prevVideo?.video_blob_id && prevVideo.video_blob_id !== v.video_blob_id) {
       void deleteVideoBlob(prevVideo.video_blob_id);
     }
+    const updatedV: ShortVideo = { ...v, updated_at: new Date().toISOString() };
     setShortVideos(prev =>
-      prev.map(item => (item.id === v.id ? { ...v, updated_at: new Date().toISOString() } : item))
+      prev.map(item => (item.id === v.id ? updatedV : item))
     );
+    void syncDoc('short_videos', updatedV.id, updatedV as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     addAudit('UPDATE_SHORT_VIDEO', 'SHORT_VIDEOS', v.id, `Memperbarui short video: ${v.title}`);
   };
 
@@ -2587,6 +2729,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       void deleteVideoBlob(target.video_blob_id);
     }
     setShortVideos(prev => prev.filter(item => item.id !== id));
+    void removeDoc('short_videos', id).catch(() => {});
     addAudit('DELETE_SHORT_VIDEO', 'SHORT_VIDEOS', id, `Menghapus short video ID: ${id}`);
   };
 
@@ -2597,6 +2740,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: new Date().toISOString()
     };
     setGroupSessions(prev => [newS, ...prev]);
+    void syncDoc('group_sessions', newS.id, newS as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
     addAudit('ADD_GROUP_SESSION', 'GROUP_SESSIONS', newS.id, `Menambah jadwal sesi: ${s.title}`);
     addNotification(
       s.session_category === 'ZOOM_BIMBEL_MALAM' ? 'Jadwal Zoom Baru' : 'Tryout Bareng Baru',
@@ -2606,14 +2750,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateGroupSession = (s: GroupSession) => {
+    const updatedS: GroupSession = { ...s, updated_at: new Date().toISOString() };
     setGroupSessions(prev =>
-      prev.map(item => (item.id === s.id ? { ...s, updated_at: new Date().toISOString() } : item))
+      prev.map(item => (item.id === s.id ? updatedS : item))
     );
+    void syncDoc('group_sessions', updatedS.id, updatedS as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     addAudit('UPDATE_GROUP_SESSION', 'GROUP_SESSIONS', s.id, `Memperbarui sesi: ${s.title}`);
   };
 
   const deleteGroupSession = (id: string) => {
     setGroupSessions(prev => prev.filter(item => item.id !== id));
+    void removeDoc('group_sessions', id).catch(() => {});
     addAudit('DELETE_GROUP_SESSION', 'GROUP_SESSIONS', id, `Menghapus jadwal sesi ID: ${id}`);
   };
 
@@ -2625,33 +2772,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: new Date().toISOString()
     };
     setAnnouncements(prev => [newA, ...prev]);
+    void syncDoc('announcements', newA.id, newA as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
     addAudit('ADD_ANNOUNCEMENT', 'ANNOUNCEMENTS', newA.id, `Menerbitkan pengumuman: ${a.title}`);
   };
 
   const updateAnnouncement = (a: AdminAnnouncement) => {
+    const updatedA: AdminAnnouncement = { ...a, updated_at: new Date().toISOString() };
     setAnnouncements(prev =>
-      prev.map(item => (item.id === a.id ? { ...a, updated_at: new Date().toISOString() } : item))
+      prev.map(item => (item.id === a.id ? updatedA : item))
     );
+    void syncDoc('announcements', updatedA.id, updatedA as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     addAudit('UPDATE_ANNOUNCEMENT', 'ANNOUNCEMENTS', a.id, `Memperbarui pengumuman: ${a.title}`);
   };
 
   const deleteAnnouncement = (id: string) => {
     setAnnouncements(prev => prev.filter(item => item.id !== id));
+    void removeDoc('announcements', id).catch(() => {});
     addAudit('DELETE_ANNOUNCEMENT', 'ANNOUNCEMENTS', id, `Menghapus pengumuman ID: ${id}`);
   };
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+    const nextSettings = { ...settings, ...newSettings };
+    setSettings(nextSettings);
+    void syncDoc('app_settings', 'global', nextSettings as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     addAudit('UPDATE_SETTINGS', 'SETTINGS', 'APP', 'Memperbarui konfigurasi sistem');
   };
 
   const updatePassingGrade = (pg: PassingGradeConfig) => {
-    setSettings(prev => ({ ...prev, default_passing_grade: pg }));
+    const nextSettings = { ...settings, default_passing_grade: pg };
+    setSettings(nextSettings);
+    void syncDoc('app_settings', 'global', nextSettings as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     addAudit('UPDATE_PASSING_GRADE', 'SETTINGS', 'PASSING_GRADE', `Nilai baru: TWK ${pg.twk}, TIU ${pg.tiu}, TKP ${pg.tkp}`);
   };
 
   const updateSkdCalculatorConfig = (cfg: SkdCalculatorConfig) => {
-    setSettings(prev => ({ ...prev, skd_calculator_config: cfg }));
+    const nextSettings = { ...settings, skd_calculator_config: cfg };
+    setSettings(nextSettings);
+    void syncDoc('app_settings', 'global', nextSettings as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     addAudit(
       'UPDATE_CALCULATOR_SETTINGS',
       'SETTINGS',
@@ -2680,6 +2837,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updatePackage = (pkg: PremiumPackage) => {
     setPackages(prev => prev.map(p => (p.id === pkg.id ? pkg : p)));
+    void syncDoc('packages', pkg.id, pkg as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
     addAudit('UPDATE_PACKAGE', 'PACKAGES', pkg.id, `Memperbarui paket: ${pkg.package_name} (${pkg.duration_days} hari)`);
   };
 
@@ -2789,6 +2947,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         authModalMode,
         setAuthModalMode,
         login,
+        loginWithGoogle,
         register,
         resetPassword,
         logout,
