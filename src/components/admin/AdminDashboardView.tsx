@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   useApp,
   AdminNavView,
@@ -70,7 +70,11 @@ import {
   ZoomIn,
   Calculator,
   ListPlus,
-  MinusCircle
+  MinusCircle,
+  Smartphone,
+  QrCode,
+  Phone,
+  Building2
 } from 'lucide-react';
 import {
   User,
@@ -94,7 +98,10 @@ import {
   AdminAnnouncement,
   AnnouncementCategory,
   MembershipType,
-  SkdCalculatorConfig
+  SkdCalculatorConfig,
+  InstallTutorialImage,
+  PaymentChannelConfig,
+  PaymentChannelCategory
 } from '../../types';
 import {
   saveVideoBlob,
@@ -231,7 +238,7 @@ export const AdminDashboardView: React.FC = () => {
   // --- Sub-state for Payment Filter, Search, Referral & Commission ---
   const [paymentSearch, setPaymentSearch] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'ALL' | PaymentStatus>('ALL');
-  const [paymentReferralFilter, setPaymentReferralFilter] = useState<'ALL' | 'WITH_REFERRAL' | 'PARTNER_ONLY'>('ALL');
+  const [paymentReferralFilter, setPaymentReferralFilter] = useState<'ALL' | 'WITH_REFERRAL' | 'PARTNER_ONLY' | 'UPGRADE_ONLY'>('ALL');
   const [commissionStatusFilter, setCommissionStatusFilter] = useState<'ALL' | 'UNPAID' | 'PAID'>('ALL');
   const [activationSearch, setActivationSearch] = useState('');
   const [rejectingPaymentId, setRejectingPaymentId] = useState<string | null>(null);
@@ -510,7 +517,62 @@ export const AdminDashboardView: React.FC = () => {
   const [standarQuestionsOnly, setStandarQuestionsOnly] = useState(
     settings.standar_questions_only ?? true
   );
+  const [installPosterUrl, setInstallPosterUrl] = useState(
+    settings.install_tutorial_poster_url || ''
+  );
+  const [installTutorialImages, setInstallTutorialImages] = useState<InstallTutorialImage[]>(
+    settings.install_tutorial_images || []
+  );
+  const [newTutorialTitle, setNewTutorialTitle] = useState('');
+  const [newTutorialCaption, setNewTutorialCaption] = useState('');
+  const [isProcessingTutorialMedia, setIsProcessingTutorialMedia] = useState(false);
+  const [tutorialUploadError, setTutorialUploadError] = useState('');
+  const [tutorialPreviewModal, setTutorialPreviewModal] = useState<{ url: string; title: string } | null>(null);
   const [settingsSavedNotice, setSettingsSavedNotice] = useState('');
+
+  // --- Pengaturan Pembayaran Paket Belajar (Rekening, E-Wallet Non-Tunai, QRIS) ---
+  const [nonCashPhone, setNonCashPhone] = useState(
+    settings.non_cash_phone || settings.admin_whatsapp || ''
+  );
+  const [qrisImageUrl, setQrisImageUrl] = useState(settings.qris_image_url || '');
+  const [qrisMerchantName, setQrisMerchantName] = useState(
+    settings.qris_merchant_name || 'QRIS LOGIN CPNS EDUKASI'
+  );
+  const [qrisNotes, setQrisNotes] = useState(
+    settings.qris_notes || 'Mendukung GoPay, OVO, DANA, ShopeePay, LinkAja, BSI Mobile & Seluruh Bank'
+  );
+  const [paymentChannels, setPaymentChannels] = useState<PaymentChannelConfig[]>(
+    settings.payment_channels || []
+  );
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [editingPayChannelId, setEditingPayChannelId] = useState<string | null>(null);
+  const [payChCategory, setPayChCategory] = useState<PaymentChannelCategory>('BANK');
+  const [payChProvider, setPayChProvider] = useState('');
+  const [payChNumber, setPayChNumber] = useState('');
+  const [payChHolder, setPayChHolder] = useState('');
+  const [payChQrUrl, setPayChQrUrl] = useState('');
+  const [payChNotes, setPayChNotes] = useState('');
+  const [payChActive, setPayChActive] = useState(true);
+  const [paymentSettingsError, setPaymentSettingsError] = useState('');
+  const [isProcessingQrMedia, setIsProcessingQrMedia] = useState(false);
+
+  useEffect(() => {
+    setAppHeadline(settings.headline);
+    setAppWhatsapp(settings.admin_whatsapp);
+    setAppEmail(settings.admin_email || OFFICIAL_SENDER_EMAIL);
+    setAppMaintenance(settings.maintenance_mode);
+    setLockMaterialsForPremiumOnly(settings.lock_materials_for_premium_only ?? true);
+    setStandarQuestionsOnly(settings.standar_questions_only ?? true);
+    setInstallPosterUrl(settings.install_tutorial_poster_url || '');
+    setInstallTutorialImages(settings.install_tutorial_images || []);
+    setNonCashPhone(settings.non_cash_phone || settings.admin_whatsapp || '');
+    setQrisImageUrl(settings.qris_image_url || '');
+    setQrisMerchantName(settings.qris_merchant_name || 'QRIS LOGIN CPNS EDUKASI');
+    setQrisNotes(
+      settings.qris_notes || 'Mendukung GoPay, OVO, DANA, ShopeePay, LinkAja, BSI Mobile & Seluruh Bank'
+    );
+    setPaymentChannels(settings.payment_channels || []);
+  }, [settings]);
 
   // --- Affiliate approval, vertical partner directory, CRUD & payout states ---
   const [rejectingPartnerUser, setRejectingPartnerUser] = useState<User | null>(null);
@@ -1283,11 +1345,20 @@ export const AdminDashboardView: React.FC = () => {
       ? `${partner.affiliate_bank_name} ${partner.affiliate_account_number || ''} a.n. ${partner.affiliate_account_holder || partner.full_name}`
       : '-';
 
+    const isUpgrade = Boolean(p.is_package_upgrade);
+    const previousPkgName =
+      p.previous_package_name ||
+      (p.previous_membership_type ? `Paket ${p.previous_membership_type}` : '-');
+    const upgradeCredit = p.upgrade_credit_amount ?? 0;
+
     return {
       buyer,
       partner,
       phone: p.user_phone || buyer?.phone || '-',
       regDate,
+      isUpgrade,
+      previousPkgName,
+      upgradeCredit,
       originalAmount: p.original_amount ?? p.amount,
       promoDiscount: p.promo_discount ?? 0,
       referralCode: p.referral_code || '-',
@@ -1312,16 +1383,17 @@ export const AdminDashboardView: React.FC = () => {
   const totalCommissionPayable = commissionPaidTotal + commissionUnpaidTotal;
 
   const exportPaymentsToCSV = () => {
+    const upgradeCount = payments.filter(p => p.is_package_upgrade).length;
     let csv = '\uFEFF'; // UTF-8 BOM for Microsoft Excel
-    csv += 'LAPORAN REKAPITULASI PEMBAYARAN, AFILIASI MITRA & KOMISI REFERRAL - LOGIN CPNS\n';
+    csv += 'LAPORAN REKAPITULASI PEMBAYARAN, PERALIHAN PAKET, AFILIASI MITRA & KOMISI REFERRAL - LOGIN CPNS\n';
     csv += `Tanggal Ekspor;${new Date().toLocaleString('id-ID')}\n`;
     csv += `Total Pemasukan Bersih (Disetujui);Rp ${approvedRevenueTotal.toLocaleString('id-ID')}\n`;
     csv += `Total Menunggu Verifikasi;Rp ${pendingRevenueTotal.toLocaleString('id-ID')}\n`;
     csv += `Total Komisi Mitra Wajib Dibayar (Lunas);Rp ${totalCommissionPayable.toLocaleString('id-ID')}\n`;
     csv += `Total Komisi Sudah Dibayarkan;Rp ${commissionPaidTotal.toLocaleString('id-ID')}\n`;
     csv += `Total Komisi Belum Dibayar;Rp ${commissionUnpaidTotal.toLocaleString('id-ID')}\n`;
-    csv += `Total Transaksi Masuk;${payments.length}\n\n`;
-    csv += 'No;ID Transaksi;Tanggal Daftar;Tanggal Bayar;Nama Siswa;Email;No. WhatsApp;Paket Bimbingan;Harga Asli (Rp);Diskon Promo (Rp);Kode Referral;Potongan Referral (Rp);Nominal Bayar (Rp);Metode Pembayaran;Status Pembayaran;Mitra Pemilik Kode;WA Mitra;Rekening Mitra;Komisi Mitra (Rp);Status Komisi;Tgl Bayar Komisi;Diverifikasi Oleh;Catatan\n';
+    csv += `Total Transaksi Masuk;${payments.length} (Peralihan/Upgrade Paket: ${upgradeCount})\n\n`;
+    csv += 'No;ID Transaksi;Tanggal Daftar;Tanggal Bayar;Nama Siswa;Email;No. WhatsApp;Jenis Transaksi;Paket Tujuan;Paket Sebelumnya;Harga Asli Paket (Rp);Potongan Paket Sblm (Rp);Diskon Promo (Rp);Kode Referral;Potongan Referral (Rp);Total Selisih / Nominal Bayar (Rp);Metode Pembayaran;Status Pembayaran;Mitra Pemilik Kode;WA Mitra;Rekening Mitra;Komisi Mitra (Rp);Status Komisi;Tgl Bayar Komisi;Diverifikasi Oleh;Catatan\n';
 
     payments.forEach((p, idx) => {
       const d = getPaymentPartnerDetails(p);
@@ -1330,12 +1402,14 @@ export const AdminDashboardView: React.FC = () => {
       const commPaidAtStr = p.commission_paid_at ? new Date(p.commission_paid_at).toLocaleDateString('id-ID') : '-';
       const cleanName = `"${p.user_name.replace(/"/g, '""')}"`;
       const cleanEmail = `"${p.user_email.replace(/"/g, '""')}"`;
+      const txType = d.isUpgrade ? '"Peralihan / Upgrade Paket"' : '"Pembelian Baru"';
       const cleanPkg = `"${p.package_name.replace(/"/g, '""')}"`;
+      const cleanPrevPkg = `"${d.previousPkgName.replace(/"/g, '""')}"`;
       const cleanPartner = `"${d.partnerName.replace(/"/g, '""')}"`;
       const cleanBank = `"${d.partnerBank.replace(/"/g, '""')}"`;
       const cleanReason = p.rejection_reason ? `"${p.rejection_reason.replace(/"/g, '""')}"` : '-';
 
-      csv += `${idx + 1};${p.id};${regDateStr};${payDateStr};${cleanName};${cleanEmail};${d.phone};${cleanPkg};${d.originalAmount};${d.promoDiscount};${d.referralCode};${d.referralDiscount};${p.amount};${p.payment_method};${p.status};${cleanPartner};${d.partnerPhone};${cleanBank};${d.commission};${d.commissionLabel};${commPaidAtStr};${p.verified_by || '-'};${cleanReason}\n`;
+      csv += `${idx + 1};${p.id};${regDateStr};${payDateStr};${cleanName};${cleanEmail};${d.phone};${txType};${cleanPkg};${cleanPrevPkg};${d.originalAmount};${d.upgradeCredit};${d.promoDiscount};${d.referralCode};${d.referralDiscount};${p.amount};${p.payment_method};${p.status};${cleanPartner};${d.partnerPhone};${cleanBank};${d.commission};${d.commissionLabel};${commPaidAtStr};${p.verified_by || '-'};${cleanReason}\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1370,12 +1444,16 @@ export const AdminDashboardView: React.FC = () => {
             ? '<span style="color: #b45309; font-weight: bold;">BELUM DIBAYAR</span>'
             : `<span style="color: #64748b;">${d.commissionLabel}</span>`;
 
+        const pkgDetailHtml = d.isUpgrade
+          ? `${p.package_name}<br><small style="color: #4f46e5; font-weight: bold;">PERALIHAN (Dari ${d.previousPkgName})</small><br><small style="color: #64748b;">Asli Rp ${d.originalAmount.toLocaleString('id-ID')} - Sblm Rp ${d.upgradeCredit.toLocaleString('id-ID')} · Ref: Rp 0</small>`
+          : `${p.package_name}<br><small>Ref: <strong>${d.referralCode}</strong> (-Rp ${d.referralDiscount.toLocaleString('id-ID')})</small>`;
+
         return `
           <tr>
             <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center;">${idx + 1}</td>
             <td style="padding: 6px; border: 1px solid #cbd5e1; font-size: 9pt;">Daftar: ${regDate}<br>Bayar: ${payDate}</td>
             <td style="padding: 6px; border: 1px solid #cbd5e1;"><strong>${p.user_name}</strong><br><small style="color: #64748b;">${p.user_email} | ${d.phone}</small></td>
-            <td style="padding: 6px; border: 1px solid #cbd5e1;">${p.package_name}<br><small>Ref: <strong>${d.referralCode}</strong> (-Rp ${d.referralDiscount.toLocaleString('id-ID')})</small></td>
+            <td style="padding: 6px; border: 1px solid #cbd5e1;">${pkgDetailHtml}</td>
             <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: bold; text-align: right;">Rp ${p.amount.toLocaleString('id-ID')}</td>
             <td style="padding: 6px; border: 1px solid #cbd5e1;"><strong>${d.partnerName}</strong><br><small style="color: #64748b;">WA: ${d.partnerPhone}<br>Rek: ${d.partnerBank}</small></td>
             <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: right;"><strong>Rp ${d.commission.toLocaleString('id-ID')}</strong><br>${commBadge}</td>
@@ -1911,18 +1989,291 @@ TINGKAT KESULITAN: Sedang
     }
   };
 
+  const handleUploadTutorialPoster = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setTutorialUploadError('');
+    if (!file.type.startsWith('image/')) {
+      setTutorialUploadError('File poster harus berupa gambar (JPG, PNG, atau WEBP).');
+      return;
+    }
+    setIsProcessingTutorialMedia(true);
+    try {
+      const compressed = await readAndCompressImageFile(file, 960, 0.78);
+      const projectedBytes = compressed.length + JSON.stringify(installTutorialImages).length;
+      if (projectedBytes > 780000) {
+        setTutorialUploadError(
+          'Ukuran total gambar melebihi batas penyimpanan dokumen (maks ~780 KB). Gunakan gambar yang lebih ringkas atau hapus beberapa gambar lama.'
+        );
+        return;
+      }
+      setInstallPosterUrl(compressed);
+    } catch {
+      setTutorialUploadError('Gagal memproses file poster tutorial.');
+    } finally {
+      setIsProcessingTutorialMedia(false);
+    }
+  };
+
+  const handleUploadTutorialImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    setTutorialUploadError('');
+    setIsProcessingTutorialMedia(true);
+    try {
+      const nextItems: InstallTutorialImage[] = [...installTutorialImages];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) {
+          setTutorialUploadError('Semua file gambar tutorial harus berformat JPG, PNG, atau WEBP.');
+          continue;
+        }
+        const compressed = await readAndCompressImageFile(file, 840, 0.74);
+        const projectedBytes =
+          installPosterUrl.length + JSON.stringify(nextItems).length + compressed.length;
+        if (projectedBytes > 780000) {
+          setTutorialUploadError(
+            'Kapasitas total gambar tutorial mencapai batas aman penyimpanan (~780 KB). Kurangi jumlah gambar atau gunakan resolusi lebih kecil.'
+          );
+          break;
+        }
+        const stepNumber = nextItems.length + 1;
+        const customTitle = newTutorialTitle.trim();
+        nextItems.push({
+          id: `tut-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          title:
+            files.length === 1 && customTitle
+              ? customTitle
+              : customTitle
+              ? `${customTitle} (${stepNumber})`
+              : `Langkah ${stepNumber}`,
+          caption: newTutorialCaption.trim() || undefined,
+          image_url: compressed,
+          created_at: new Date().toISOString()
+        });
+      }
+      setInstallTutorialImages(nextItems);
+      setNewTutorialTitle('');
+      setNewTutorialCaption('');
+    } catch {
+      setTutorialUploadError('Gagal memproses gambar tutorial.');
+    } finally {
+      setIsProcessingTutorialMedia(false);
+    }
+  };
+
+  const handleMoveTutorialImage = (idx: number, direction: -1 | 1) => {
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= installTutorialImages.length) return;
+    setInstallTutorialImages(prev => {
+      const copy = [...prev];
+      const temp = copy[idx];
+      copy[idx] = copy[targetIdx];
+      copy[targetIdx] = temp;
+      return copy;
+    });
+  };
+
+  const estimateSettingsPayloadBytes = (
+    nextQrisUrl: string,
+    nextChannels: PaymentChannelConfig[]
+  ) =>
+    installPosterUrl.length +
+    JSON.stringify(installTutorialImages).length +
+    nextQrisUrl.length +
+    JSON.stringify(nextChannels).length;
+
+  const handleUploadMainQris = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPaymentSettingsError('');
+    if (!file.type.startsWith('image/')) {
+      setPaymentSettingsError('File QR Code harus berupa gambar (JPG, PNG, atau WEBP).');
+      return;
+    }
+    setIsProcessingQrMedia(true);
+    try {
+      const compressed = await readAndCompressImageFile(file, 720, 0.82);
+      if (estimateSettingsPayloadBytes(compressed, paymentChannels) > 820000) {
+        setPaymentSettingsError(
+          'Ukuran total media pengaturan melebihi batas aman penyimpanan (~820 KB). Gunakan gambar QR yang lebih ringkas.'
+        );
+        return;
+      }
+      setQrisImageUrl(compressed);
+      updateSettings({
+        qris_image_url: compressed,
+        qris_merchant_name: qrisMerchantName.trim() || 'QRIS LOGIN CPNS EDUKASI',
+        qris_notes: qrisNotes.trim()
+      });
+      setSettingsSavedNotice('Gambar QR Code QRIS berhasil diupload dan langsung aktif di panel peserta!');
+      setTimeout(() => setSettingsSavedNotice(''), 4000);
+    } catch {
+      setPaymentSettingsError('Gagal memproses file gambar QR Code.');
+    } finally {
+      setIsProcessingQrMedia(false);
+    }
+  };
+
+  const handleUploadChannelQr = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPaymentSettingsError('');
+    if (!file.type.startsWith('image/')) {
+      setPaymentSettingsError('File QR Code metode harus berupa gambar (JPG, PNG, atau WEBP).');
+      return;
+    }
+    setIsProcessingQrMedia(true);
+    try {
+      const compressed = await readAndCompressImageFile(file, 640, 0.8);
+      if (compressed.length > 260000) {
+        setPaymentSettingsError('Ukuran gambar QR metode terlalu besar. Gunakan gambar dengan resolusi lebih kecil.');
+        return;
+      }
+      setPayChQrUrl(compressed);
+    } catch {
+      setPaymentSettingsError('Gagal memproses gambar QR metode.');
+    } finally {
+      setIsProcessingQrMedia(false);
+    }
+  };
+
+  const openAddPaymentChannel = (defaultCat: PaymentChannelCategory = 'BANK') => {
+    setPaymentSettingsError('');
+    setEditingPayChannelId(null);
+    setPayChCategory(defaultCat);
+    setPayChProvider('');
+    setPayChNumber(defaultCat === 'EWALLET' || defaultCat === 'COD' ? nonCashPhone || appWhatsapp : '');
+    setPayChHolder('');
+    setPayChQrUrl('');
+    setPayChNotes('');
+    setPayChActive(true);
+    setIsPaymentModalOpen(true);
+  };
+
+  const openEditPaymentChannel = (ch: PaymentChannelConfig) => {
+    setPaymentSettingsError('');
+    setEditingPayChannelId(ch.id);
+    setPayChCategory(ch.category);
+    setPayChProvider(ch.provider_name);
+    setPayChNumber(ch.account_number);
+    setPayChHolder(ch.account_holder);
+    setPayChQrUrl(ch.qr_image_url || '');
+    setPayChNotes(ch.instructions || '');
+    setPayChActive(ch.is_active);
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleSavePaymentChannel = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPaymentSettingsError('');
+
+    const provider = payChProvider.trim();
+    const accNumber = payChNumber.trim();
+    const holder = payChHolder.trim();
+
+    if (!provider) {
+      setPaymentSettingsError('Nama bank / media pembayaran wajib diisi.');
+      return;
+    }
+    if (payChCategory !== 'QRIS' && !accNumber) {
+      setPaymentSettingsError(
+        payChCategory === 'BANK'
+          ? 'Nomor rekening wajib diisi.'
+          : 'Nomor HP / nomor tujuan wajib diisi.'
+      );
+      return;
+    }
+    if (payChCategory === 'QRIS' && !accNumber && !payChQrUrl) {
+      setPaymentSettingsError('Untuk QRIS, unggah gambar QR Code atau isi ID Merchant/NMID.');
+      return;
+    }
+    if (!holder) {
+      setPaymentSettingsError('Nama pemilik rekening / akun wajib diisi.');
+      return;
+    }
+
+    const nextItem: PaymentChannelConfig = {
+      id: editingPayChannelId || `paych-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      category: payChCategory,
+      provider_name: provider,
+      account_number: accNumber || 'SCAN QRIS',
+      account_holder: holder,
+      qr_image_url: payChQrUrl || undefined,
+      instructions: payChNotes.trim() || undefined,
+      is_active: payChActive
+    };
+
+    const nextChannels = editingPayChannelId
+      ? paymentChannels.map(item => (item.id === editingPayChannelId ? nextItem : item))
+      : [...paymentChannels, nextItem];
+
+    if (estimateSettingsPayloadBytes(qrisImageUrl, nextChannels) > 840000) {
+      setPaymentSettingsError(
+        'Kapasitas penyimpanan media QR melebihi batas aman (~840 KB). Gunakan gambar QR yang lebih ringkas.'
+      );
+      return;
+    }
+
+    setPaymentChannels(nextChannels);
+    updateSettings({ payment_channels: nextChannels });
+    setIsPaymentModalOpen(false);
+    setSettingsSavedNotice(
+      editingPayChannelId
+        ? `Metode pembayaran "${provider}" berhasil diperbarui dan otomatis tersinkron ke panel peserta!`
+        : `Metode pembayaran "${provider}" berhasil ditambahkan dan otomatis tampil di panel peserta!`
+    );
+    setTimeout(() => setSettingsSavedNotice(''), 4000);
+  };
+
+  const handleTogglePaymentChannelActive = (id: string) => {
+    const nextChannels = paymentChannels.map(ch =>
+      ch.id === id ? { ...ch, is_active: !ch.is_active } : ch
+    );
+    setPaymentChannels(nextChannels);
+    updateSettings({ payment_channels: nextChannels });
+    setSettingsSavedNotice('Status aktif metode pembayaran diperbarui di panel peserta.');
+    setTimeout(() => setSettingsSavedNotice(''), 3000);
+  };
+
+  const handleDeletePaymentChannel = (id: string) => {
+    const target = paymentChannels.find(c => c.id === id);
+    const nextChannels = paymentChannels.filter(c => c.id !== id);
+    setPaymentChannels(nextChannels);
+    updateSettings({ payment_channels: nextChannels });
+    setSettingsSavedNotice(
+      `Metode pembayaran "${target?.provider_name || ''}" dihapus dan langsung hilang dari panel peserta.`
+    );
+    setTimeout(() => setSettingsSavedNotice(''), 3500);
+  };
+
   const handleSaveAppSettings = (e: React.FormEvent) => {
     e.preventDefault();
+    setTutorialUploadError('');
+    setPaymentSettingsError('');
     updateSettings({
       headline: appHeadline.trim(),
       admin_whatsapp: appWhatsapp.trim(),
+      non_cash_phone: nonCashPhone.trim() || appWhatsapp.trim(),
       admin_email: appEmail.trim() || OFFICIAL_SENDER_EMAIL,
       maintenance_mode: appMaintenance,
       lock_materials_for_premium_only: lockMaterialsForPremiumOnly,
-      standar_questions_only: standarQuestionsOnly
+      standar_questions_only: standarQuestionsOnly,
+      qris_image_url: qrisImageUrl || '',
+      qris_merchant_name: qrisMerchantName.trim() || 'QRIS LOGIN CPNS EDUKASI',
+      qris_notes: qrisNotes.trim(),
+      payment_channels: paymentChannels,
+      install_tutorial_poster_url: installPosterUrl || '',
+      install_tutorial_images: installTutorialImages
     });
-    setSettingsSavedNotice('Pengaturan aplikasi, pembatasan materi & paket, WhatsApp & Email Admin berhasil disimpan!');
-    setTimeout(() => setSettingsSavedNotice(''), 4000);
+    setSettingsSavedNotice(
+      'Seluruh pengaturan aplikasi, metode pembayaran, QR Code, nomor non-tunai & tutorial berhasil disimpan dan tersinkron ke panel peserta!'
+    );
+    setTimeout(() => setSettingsSavedNotice(''), 4500);
   };
 
   const handleExportResultsCSV = (targetRows = results) => {
@@ -2288,18 +2639,28 @@ TINGKAT KESULITAN: Sedang
               </div>
 
               {payments.slice(0, 3).map(p => (
-                <div key={p.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-                  <div>
-                    <strong className="text-slate-900 block">{p.user_name}</strong>
-                    <span className="text-slate-500 text-[11px]">{p.package_name} · Rp {p.amount.toLocaleString('id-ID')}</span>
+                <div key={p.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <strong className="text-slate-900">{p.user_name}</strong>
+                      {p.is_package_upgrade && (
+                        <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-extrabold uppercase">
+                          Peralihan Paket
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-slate-500 text-[11px] block">
+                      {p.package_name} · Rp {p.amount.toLocaleString('id-ID')}
+                      {p.is_package_upgrade && p.previous_package_name ? ` (Dari ${p.previous_package_name})` : ''}
+                    </span>
                   </div>
-                  <div>
+                  <div className="shrink-0">
                     {p.status === 'WAITING_VERIFICATION' ? (
                       <button
                         onClick={() => approvePayment(p.id)}
-                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold"
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold cursor-pointer"
                       >
-                        Setujui
+                        {p.is_package_upgrade ? 'Setujui & Naikkan' : 'Setujui'}
                       </button>
                     ) : (
                       <span className="text-[10px] font-bold text-slate-500">{p.status}</span>
@@ -4800,12 +5161,15 @@ TINGKAT KESULITAN: Sedang`;
             if (paymentStatusFilter !== 'ALL' && p.status !== paymentStatusFilter) return false;
             if (paymentReferralFilter === 'WITH_REFERRAL' && !p.referral_code) return false;
             if (paymentReferralFilter === 'PARTNER_ONLY' && (!p.affiliate_commission || p.affiliate_commission <= 0)) return false;
+            if (paymentReferralFilter === 'UPGRADE_ONLY' && !p.is_package_upgrade) return false;
             if (!paymentSearch.trim()) return true;
             const q = paymentSearch.toLowerCase();
             return (
               p.user_name.toLowerCase().includes(q) ||
               p.user_email.toLowerCase().includes(q) ||
               p.package_name.toLowerCase().includes(q) ||
+              (p.previous_package_name || '').toLowerCase().includes(q) ||
+              (p.is_package_upgrade && 'peralihan upgrade'.includes(q)) ||
               (p.referral_code || '').toLowerCase().includes(q) ||
               (p.affiliate_name || '').toLowerCase().includes(q)
             );
@@ -4929,10 +5293,11 @@ TINGKAT KESULITAN: Sedang`;
                 </div>
                 <select
                   value={paymentReferralFilter}
-                  onChange={e => setPaymentReferralFilter(e.target.value as 'ALL' | 'WITH_REFERRAL' | 'PARTNER_ONLY')}
+                  onChange={e => setPaymentReferralFilter(e.target.value as 'ALL' | 'WITH_REFERRAL' | 'PARTNER_ONLY' | 'UPGRADE_ONLY')}
                   className="p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700"
                 >
-                  <option value="ALL">Semua Sumber Referral</option>
+                  <option value="ALL">Semua Sumber &amp; Jenis</option>
+                  <option value="UPGRADE_ONLY">Khusus Peralihan / Upgrade Paket</option>
                   <option value="WITH_REFERRAL">Semua Pakai Kode Referral</option>
                   <option value="PARTNER_ONLY">Khusus Mitra Berkomisi (Rp 10rb)</option>
                 </select>
@@ -5017,18 +5382,40 @@ TINGKAT KESULITAN: Sedang`;
                             <div className="text-[10px] text-slate-500 font-mono">WA: {d.phone}</div>
                           </td>
                           <td className="py-2.5 px-3">
-                            <div className="font-semibold text-slate-800">{p.package_name}</div>
-                            <div className="text-blue-700 font-mono font-extrabold">Rp {p.amount.toLocaleString('id-ID')}</div>
-                            {(d.promoDiscount > 0 || d.referralDiscount > 0) && (
-                              <div className="text-[10px] text-slate-500 font-mono">
-                                Asli {d.originalAmount.toLocaleString('id-ID')}
-                                {d.referralDiscount > 0 ? ` · Ref -${d.referralDiscount.toLocaleString('id-ID')}` : ''}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-slate-800">{p.package_name}</span>
+                              {d.isUpgrade && (
+                                <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-extrabold text-[9px] uppercase">
+                                  Peralihan Paket
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-blue-700 font-mono font-extrabold">
+                              {d.isUpgrade ? 'Selisih: ' : ''}Rp {p.amount.toLocaleString('id-ID')}
+                            </div>
+                            {d.isUpgrade ? (
+                              <div className="text-[10px] text-indigo-700 font-mono space-y-0.5">
+                                <div>Dari: {d.previousPkgName}</div>
+                                <div>
+                                  Asli Rp {d.originalAmount.toLocaleString('id-ID')} - Sblm Rp {d.upgradeCredit.toLocaleString('id-ID')}
+                                </div>
                               </div>
+                            ) : (
+                              (d.promoDiscount > 0 || d.referralDiscount > 0) && (
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  Asli {d.originalAmount.toLocaleString('id-ID')}
+                                  {d.referralDiscount > 0 ? ` · Ref -${d.referralDiscount.toLocaleString('id-ID')}` : ''}
+                                </div>
+                              )
                             )}
                             <div className="text-[10px] text-slate-400">{p.payment_method}</div>
                           </td>
                           <td className="py-2.5 px-3">
-                            {p.referral_code ? (
+                            {d.isUpgrade ? (
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                Tidak berlaku (Peralihan paket)
+                              </span>
+                            ) : p.referral_code ? (
                               <div className="space-y-0.5">
                                 <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-extrabold text-[10px]">
                                   {p.referral_code}
@@ -5089,7 +5476,7 @@ TINGKAT KESULITAN: Sedang`;
                                   onClick={() => approvePayment(p.id)}
                                   className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold shadow-2xs cursor-pointer"
                                 >
-                                  Setujui &amp; Aktifkan
+                                  {p.is_package_upgrade ? 'Setujui & Naikkan Status' : 'Setujui & Aktifkan'}
                                 </button>
                                 <button
                                   onClick={() => {
@@ -8646,7 +9033,7 @@ TINGKAT KESULITAN: Sedang`;
             </button>
           </div>
 
-          <form onSubmit={handleSaveAppSettings} className="space-y-4 max-w-lg text-xs">
+          <form onSubmit={handleSaveAppSettings} className="space-y-6 text-xs">
             {settingsSavedNotice && (
               <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -8654,99 +9041,971 @@ TINGKAT KESULITAN: Sedang`;
               </div>
             )}
 
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Headline Aplikasi</label>
-              <input
-                type="text"
-                value={appHeadline}
-                onChange={e => setAppHeadline(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-medium"
-                required
-              />
+            <div className="space-y-4 max-w-lg">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Headline Aplikasi</label>
+                <input
+                  type="text"
+                  value={appHeadline}
+                  onChange={e => setAppHeadline(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-medium"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Email Resmi Pengirim Notifikasi Transaksi</label>
+                <input
+                  type="email"
+                  value={appEmail}
+                  onChange={e => setAppEmail(e.target.value)}
+                  placeholder="loginbimbelasn@gmail.com"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold text-blue-800"
+                  required
+                />
+                <p className="text-[11px] text-slate-500">
+                  Digunakan sebagai identitas pengirim resmi pada log email transaksi peserta &amp; mitra.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Nomor WhatsApp Admin</label>
+                <input
+                  type="text"
+                  value={appWhatsapp}
+                  onChange={e => setAppWhatsapp(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold"
+                  required
+                />
+              </div>
+
+              <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={lockMaterialsForPremiumOnly}
+                  onChange={e => setLockMaterialsForPremiumOnly(e.target.checked)}
+                  className="w-4 h-4 rounded text-blue-600"
+                />
+                <div>
+                  <span className="font-bold text-slate-800 block">
+                    Kunci Materi Belajar Hanya Untuk Premium &amp; Intensif (Bukan Standar)
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    Peserta Paket Standar tidak dapat mengakses modul materi PDF, Google Drive, &amp; Short Video.
+                  </span>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={standarQuestionsOnly}
+                  onChange={e => setStandarQuestionsOnly(e.target.checked)}
+                  className="w-4 h-4 rounded text-blue-600"
+                />
+                <div>
+                  <span className="font-bold text-slate-800 block">
+                    Aktifkan Paket Standar Hanya Untuk Soal Saja
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    Menonaktifkan menu berbayar (Materi, Zoom, Kalkulator) pada akun Paket Standar dan mengarahkannya ke upgrade.
+                  </span>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={appMaintenance}
+                  onChange={e => setAppMaintenance(e.target.checked)}
+                  className="w-4 h-4 rounded text-blue-600"
+                />
+                <div>
+                  <span className="font-bold text-slate-800 block">Status Mode Maintenance</span>
+                  <span className="text-[11px] text-slate-500">
+                    Tandai bila sistem sedang dalam pemeliharaan jaringan.
+                  </span>
+                </div>
+              </label>
             </div>
 
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Email Resmi Pengirim Notifikasi Transaksi</label>
-              <input
-                type="email"
-                value={appEmail}
-                onChange={e => setAppEmail(e.target.value)}
-                placeholder="loginbimbelasn@gmail.com"
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold text-blue-800"
-                required
-              />
-              <p className="text-[11px] text-slate-500">
-                Digunakan sebagai identitas pengirim resmi pada log email transaksi peserta &amp; mitra.
-              </p>
+            {/* Pengaturan Rekening Bank, E-Wallet Non-Tunai (DANA, OVO, dll) & Upload Gambar QR Code */}
+            <div className="pt-5 border-t border-slate-200 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-blue-700" />
+                    <span>Pengaturan Rekening, QR Code &amp; Media Pembayaran Paket Belajar</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Tambah, edit, atau hapus rekening bank, akun non-tunai (DANA, OVO, GoPay, No. HP), serta gambar QR Code. Setiap perubahan otomatis tersinkron ke menu <strong>7. Paket Belajar</strong> peserta.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openAddPaymentChannel('BANK')}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs shadow-2xs cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Tambah Metode Pembayaran</span>
+                  </button>
+                </div>
+              </div>
+
+              {paymentSettingsError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{paymentSettingsError}</span>
+                </div>
+              )}
+
+              {/* Ringkasan QRIS Utama & Nomor HP Non-Tunai */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Upload Gambar QR Code Utama */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                        <QrCode className="w-4 h-4 text-sky-700" />
+                        <span>Upload Gambar QR Code (QRIS Pembayaran)</span>
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Gambar QRIS ini tampil langsung di tab <strong>QRIS / Scan QR</strong> pada halaman checkout peserta.
+                      </p>
+                    </div>
+                  </div>
+
+                  {qrisImageUrl ? (
+                    <div className="space-y-3">
+                      <div
+                        onClick={() =>
+                          setTutorialPreviewModal({
+                            url: qrisImageUrl,
+                            title: qrisMerchantName || 'Pratinjau Gambar QR Code Pembayaran'
+                          })
+                        }
+                        className="relative group rounded-xl overflow-hidden border border-slate-200 bg-white cursor-zoom-in flex items-center justify-center p-3"
+                      >
+                        <img
+                          src={qrisImageUrl}
+                          alt="QR Code Pembayaran"
+                          className="max-h-52 w-auto object-contain"
+                        />
+                        <div className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-slate-900/75 text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1">
+                          <ZoomIn className="w-3 h-3" />
+                          <span>Perbesar</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Ganti Gambar QR</span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            onChange={handleUploadMainQris}
+                            className="hidden"
+                            disabled={isProcessingQrMedia}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQrisImageUrl('');
+                            updateSettings({ qris_image_url: '' });
+                            setSettingsSavedNotice('Gambar QR Code QRIS dihapus.');
+                            setTimeout(() => setSettingsSavedNotice(''), 3000);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Hapus QR</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50/40 transition-colors cursor-pointer text-center">
+                      <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
+                        <QrCode className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800">
+                          {isProcessingQrMedia ? 'Memproses QR...' : 'Klik untuk Upload Gambar QR Code'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          JPG, PNG, atau WEBP (otomatis dikompres agar tajam &amp; ringan)
+                        </p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handleUploadMainQris}
+                        className="hidden"
+                        disabled={isProcessingQrMedia}
+                      />
+                    </label>
+                  )}
+
+                  <div className="space-y-2 pt-1">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Nama Merchant / Judul QRIS</label>
+                      <input
+                        type="text"
+                        value={qrisMerchantName}
+                        onChange={e => setQrisMerchantName(e.target.value)}
+                        placeholder="Contoh: QRIS LOGIN CPNS EDUKASI"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Keterangan Pembayaran QRIS</label>
+                      <input
+                        type="text"
+                        value={qrisNotes}
+                        onChange={e => setQrisNotes(e.target.value)}
+                        placeholder="Mendukung GoPay, OVO, DANA, ShopeePay, Mobile Banking"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-700"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Nomor HP Non-Tunai Utama & Akses Cepat Tambah Media */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                        <Phone className="w-4 h-4 text-emerald-700" />
+                        <span>Nomor HP Utama Non-Tunai &amp; Konfirmasi Pembayaran</span>
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Digunakan sebagai nomor tujuan utama non-tunai (DANA/OVO/GoPay) serta kontak konfirmasi WhatsApp pada tab Tunai/COD di panel peserta.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-700">No. HP Non-Tunai / E-Wallet Utama</label>
+                      <input
+                        type="text"
+                        value={nonCashPhone}
+                        onChange={e => setNonCashPhone(e.target.value)}
+                        placeholder="Contoh: 081312139893"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-emerald-800"
+                      />
+                      <p className="text-[10px] text-slate-500">
+                        Klik <strong>Simpan Pengaturan Aplikasi</strong> di bawah setelah mengubah nomor ini atau teks QRIS.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2">
+                      <p className="font-bold text-slate-800 text-[11px]">
+                        Tambah Cepat Media Pembayaran Baru:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openAddPaymentChannel('BANK')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-[11px] cursor-pointer"
+                        >
+                          <Building2 className="w-3.5 h-3.5" />
+                          <span>+ Rekening Bank</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openAddPaymentChannel('EWALLET')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] cursor-pointer"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>+ E-Wallet (DANA / OVO / GoPay)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openAddPaymentChannel('QRIS')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-bold text-[11px] cursor-pointer"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>+ QR Code Tambahan</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 text-[11px] text-blue-900">
+                    Saat ini terdapat <strong>{paymentChannels.filter(c => c.is_active).length} metode aktif</strong> dari total <strong>{paymentChannels.length} metode pembayaran</strong> yang terhubung ke halaman Paket Belajar peserta.
+                  </div>
+                </div>
+              </div>
+
+              {/* Daftar Semua Metode Pembayaran (Tambah / Edit / Hapus / Aktifkan) */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-extrabold text-slate-800 text-xs">
+                    Daftar Rekening, E-Wallet Non-Tunai &amp; Metode Pembayaran ({paymentChannels.length})
+                  </p>
+                </div>
+
+                {paymentChannels.length === 0 ? (
+                  <div className="p-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center text-slate-500">
+                    Belum ada metode pembayaran ditambahkan. Klik <strong>Tambah Metode Pembayaran</strong> untuk menambahkan Rekening Bank, DANA, OVO, atau QRIS.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {paymentChannels.map(ch => (
+                      <div
+                        key={ch.id}
+                        className={`p-4 rounded-xl border transition-colors flex flex-col justify-between gap-3 ${
+                          ch.is_active
+                            ? 'bg-white border-slate-200 shadow-2xs'
+                            : 'bg-slate-50 border-slate-200 opacity-75'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase border ${
+                                  ch.category === 'BANK'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : ch.category === 'EWALLET'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : ch.category === 'QRIS'
+                                    ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                                }`}
+                              >
+                                {ch.category === 'BANK'
+                                  ? 'Rekening Bank'
+                                  : ch.category === 'EWALLET'
+                                  ? 'Non-Tunai / E-Wallet'
+                                  : ch.category === 'QRIS'
+                                  ? 'QRIS / QR Code'
+                                  : 'Tunai / COD WA'}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  ch.is_active
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-slate-200 text-slate-600'
+                                }`}
+                              >
+                                {ch.is_active ? 'Aktif di Peserta' : 'Disembunyikan'}
+                              </span>
+                            </div>
+
+                            <h4 className="font-extrabold text-sm text-slate-900 truncate">
+                              {ch.provider_name}
+                            </h4>
+                            <p className="font-mono font-extrabold text-blue-700 text-sm tracking-wide">
+                              {ch.account_number}
+                            </p>
+                            <p className="text-[11px] text-slate-600">
+                              a.n. <strong className="text-slate-800">{ch.account_holder}</strong>
+                            </p>
+                            {ch.instructions && (
+                              <p className="text-[11px] text-slate-500 leading-snug pt-0.5">
+                                {ch.instructions}
+                              </p>
+                            )}
+                          </div>
+
+                          {ch.qr_image_url && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setTutorialPreviewModal({
+                                  url: ch.qr_image_url!,
+                                  title: `QR Code - ${ch.provider_name}`
+                                })
+                              }
+                              className="w-16 h-16 rounded-lg border border-slate-200 bg-slate-50 p-1 shrink-0 cursor-zoom-in hover:border-blue-400"
+                              title="Klik untuk perbesar QR Code"
+                            >
+                              <img
+                                src={ch.qr_image_url}
+                                alt={`QR ${ch.provider_name}`}
+                                className="w-full h-full object-contain"
+                              />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePaymentChannelActive(ch.id)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                              ch.is_active
+                                ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                            }`}
+                          >
+                            {ch.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                          </button>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEditPaymentChannel(ch)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[11px] cursor-pointer"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePaymentChannel(ch.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-[11px] cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Hapus</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Nomor WhatsApp Admin</label>
-              <input
-                type="text"
-                value={appWhatsapp}
-                onChange={e => setAppWhatsapp(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold"
-                required
-              />
+            {/* Pengaturan Upload Gambar Poster & Gambar Tutorial Instal Aplikasi (HP / Tablet) */}
+            <div className="pt-4 border-t border-slate-200 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-blue-700" />
+                    <span>Gambar Tutorial &amp; Poster Panduan Instal Aplikasi di HP / Tablet</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Upload gambar poster tutorial dan gambar langkah tutorial agar tampil di menu <strong>9. Panduan Instal Aplikasi di HP</strong> peserta.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveView('panduan-instal')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] cursor-pointer self-start sm:self-auto"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Lihat Halaman Panduan</span>
+                </button>
+              </div>
+
+              {tutorialUploadError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{tutorialUploadError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* 1. Upload Gambar Poster Tutorial */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="font-extrabold text-slate-900 text-xs">
+                        1. Upload Gambar Poster Tutorial
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Poster utama panduan instalasi aplikasi (format JPG, PNG, atau WEBP).
+                      </p>
+                    </div>
+                  </div>
+
+                  {installPosterUrl ? (
+                    <div className="space-y-2.5">
+                      <div
+                        onClick={() =>
+                          setTutorialPreviewModal({
+                            url: installPosterUrl,
+                            title: 'Pratinjau Gambar Poster Tutorial'
+                          })
+                        }
+                        className="relative group rounded-xl overflow-hidden border border-slate-200 bg-white cursor-zoom-in"
+                      >
+                        <img
+                          src={installPosterUrl}
+                          alt="Poster Tutorial"
+                          className="w-full h-52 object-contain p-2"
+                        />
+                        <div className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-slate-900/75 text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1">
+                          <ZoomIn className="w-3 h-3" />
+                          <span>Perbesar</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Ganti Poster</span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            onChange={handleUploadTutorialPoster}
+                            className="hidden"
+                            disabled={isProcessingTutorialMedia}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setInstallPosterUrl('')}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Hapus Poster</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50/40 transition-colors cursor-pointer text-center">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                        <ImageIcon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800">
+                          {isProcessingTutorialMedia ? 'Memproses gambar...' : 'Klik untuk Upload Poster Tutorial'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          JPG, PNG, atau WEBP (otomatis dikompres agar cepat dimuat)
+                        </p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handleUploadTutorialPoster}
+                        className="hidden"
+                        disabled={isProcessingTutorialMedia}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* 2. Upload Gambar Tutorial Langkah Demi Langkah */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div>
+                    <p className="font-extrabold text-slate-900 text-xs">
+                      2. Upload Gambar Tutorial ({installTutorialImages.length} Gambar)
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Tambahkan screenshot atau gambar langkah instalasi dari Chrome HP/Tablet (bisa pilih beberapa gambar sekaligus).
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={newTutorialTitle}
+                      onChange={e => setNewTutorialTitle(e.target.value)}
+                      placeholder="Judul langkah (opsional, cth: Ketuk Titik Tiga)"
+                      className="px-3 py-2 bg-white border border-slate-300 rounded-lg font-medium"
+                    />
+                    <input
+                      type="text"
+                      value={newTutorialCaption}
+                      onChange={e => setNewTutorialCaption(e.target.value)}
+                      placeholder="Keterangan singkat (opsional)"
+                      className="px-3 py-2 bg-white border border-slate-300 rounded-lg font-medium"
+                    />
+                  </div>
+
+                  <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50/40 transition-colors cursor-pointer text-center">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                      <Upload className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800">
+                        {isProcessingTutorialMedia ? 'Memproses gambar...' : 'Pilih / Upload Gambar Tutorial'}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Bisa pilih 1 atau beberapa file gambar sekaligus
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      multiple
+                      onChange={handleUploadTutorialImages}
+                      className="hidden"
+                      disabled={isProcessingTutorialMedia}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Daftar Gambar Tutorial yang Sudah Diupload */}
+              {installTutorialImages.length > 0 && (
+                <div className="space-y-3">
+                  <p className="font-bold text-slate-800">
+                    Daftar Gambar Tutorial Tersimpan ({installTutorialImages.length}):
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {installTutorialImages.map((imgItem, idx) => (
+                      <div
+                        key={imgItem.id}
+                        className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 flex flex-col"
+                      >
+                        <div
+                          onClick={() =>
+                            setTutorialPreviewModal({
+                              url: imgItem.image_url,
+                              title: imgItem.title || `Gambar Tutorial ${idx + 1}`
+                            })
+                          }
+                          className="relative rounded-lg overflow-hidden border border-slate-200 bg-white h-40 cursor-zoom-in flex items-center justify-center"
+                        >
+                          <img
+                            src={imgItem.image_url}
+                            alt={imgItem.title}
+                            className="w-full h-full object-contain p-1.5"
+                          />
+                          <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-slate-900/75 text-white text-[10px] font-bold">
+                            #{idx + 1}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5 flex-1">
+                          <input
+                            type="text"
+                            value={imgItem.title}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setInstallTutorialImages(prev =>
+                                prev.map(it => (it.id === imgItem.id ? { ...it, title: val } : it))
+                              );
+                            }}
+                            placeholder={`Langkah ${idx + 1}`}
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900"
+                          />
+                          <input
+                            type="text"
+                            value={imgItem.caption || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setInstallTutorialImages(prev =>
+                                prev.map(it => (it.id === imgItem.id ? { ...it, caption: val } : it))
+                              );
+                            }}
+                            placeholder="Keterangan langkah (opsional)"
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-600"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200">
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveTutorialImage(idx, -1)}
+                              className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                              title="Geser Naik"
+                            >
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === installTutorialImages.length - 1}
+                              onClick={() => handleMoveTutorialImage(idx, 1)}
+                              className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                              title="Geser Turun"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setInstallTutorialImages(prev =>
+                                prev.filter(it => it.id !== imgItem.id)
+                              )
+                            }
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Hapus</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={lockMaterialsForPremiumOnly}
-                onChange={e => setLockMaterialsForPremiumOnly(e.target.checked)}
-                className="w-4 h-4 rounded text-blue-600"
-              />
-              <div>
-                <span className="font-bold text-slate-800 block">
-                  Kunci Materi Belajar Hanya Untuk Premium &amp; Intensif (Bukan Standar)
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  Peserta Paket Standar tidak dapat mengakses modul materi PDF, Google Drive, &amp; Short Video.
-                </span>
-              </div>
-            </label>
-
-            <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={standarQuestionsOnly}
-                onChange={e => setStandarQuestionsOnly(e.target.checked)}
-                className="w-4 h-4 rounded text-blue-600"
-              />
-              <div>
-                <span className="font-bold text-slate-800 block">
-                  Aktifkan Paket Standar Hanya Untuk Soal Saja
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  Menonaktifkan menu berbayar (Materi, Zoom, Kalkulator) pada akun Paket Standar dan mengarahkannya ke upgrade.
-                </span>
-              </div>
-            </label>
-
-            <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={appMaintenance}
-                onChange={e => setAppMaintenance(e.target.checked)}
-                className="w-4 h-4 rounded text-blue-600"
-              />
-              <div>
-                <span className="font-bold text-slate-800 block">Status Mode Maintenance</span>
-                <span className="text-[11px] text-slate-500">
-                  Tandai bila sistem sedang dalam pemeliharaan jaringan.
-                </span>
-              </div>
-            </label>
-
-            <button
-              type="submit"
-              className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl shadow-xs cursor-pointer"
-            >
-              Simpan Pengaturan Aplikasi
-            </button>
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl shadow-xs cursor-pointer inline-flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                <span>Simpan Pengaturan Aplikasi</span>
+              </button>
+              <span className="text-[11px] text-slate-500">
+                Jangan lupa klik <strong>Simpan Pengaturan Aplikasi</strong> setelah upload/ubah gambar poster atau tutorial.
+              </span>
+            </div>
           </form>
+
+          {tutorialPreviewModal && (
+            <div
+              className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4"
+              onClick={() => setTutorialPreviewModal(null)}
+            >
+              <div
+                className="bg-white rounded-2xl max-w-3xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    {tutorialPreviewModal.title}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setTutorialPreviewModal(null)}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="p-4 bg-slate-100 flex-1 overflow-auto flex items-center justify-center">
+                  <img
+                    src={tutorialPreviewModal.url}
+                    alt={tutorialPreviewModal.title}
+                    className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal Tambah / Edit Metode Pembayaran (Rekening Bank, DANA, OVO, QRIS, COD) */}
+          {isPaymentModalOpen && (
+            <div
+              className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4"
+              onClick={() => setIsPaymentModalOpen(false)}
+            >
+              <div
+                className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">
+                      {editingPayChannelId ? 'Edit Metode Pembayaran' : 'Tambah Metode Pembayaran Baru'}
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Otomatis muncul di menu 7. Paket Belajar peserta setelah disimpan.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsPaymentModalOpen(false)}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSavePaymentChannel} className="p-5 space-y-4 text-xs">
+                  {paymentSettingsError && (
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-semibold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{paymentSettingsError}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 block">Jenis Media Pembayaran</label>
+                    <select
+                      value={payChCategory}
+                      onChange={e => setPayChCategory(e.target.value as PaymentChannelCategory)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800"
+                    >
+                      <option value="BANK">Transfer Bank (No. Rekening)</option>
+                      <option value="EWALLET">Non-Tunai / E-Wallet (No. HP: DANA, OVO, GoPay, dll)</option>
+                      <option value="QRIS">QRIS / Gambar QR Code Khusus</option>
+                      <option value="COD">Tunai / COD via WhatsApp Admin</option>
+                    </select>
+                  </div>
+
+                  {(payChCategory === 'BANK' || payChCategory === 'EWALLET') && (
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-semibold text-slate-500 block">Pilih Cepat Nama Media:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(payChCategory === 'BANK'
+                          ? ['BSI (Bank Syariah Indonesia)', 'Bank BPD Aceh', 'BCA', 'BRI', 'Mandiri', 'BNI', 'SeaBank']
+                          : ['DANA', 'OVO', 'GoPay', 'ShopeePay', 'LinkAja']
+                        ).map(preset => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setPayChProvider(preset)}
+                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition-colors ${
+                              payChProvider === preset
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 block">
+                      {payChCategory === 'BANK'
+                        ? 'Nama Bank'
+                        : payChCategory === 'EWALLET'
+                        ? 'Nama E-Wallet / Aplikasi Non-Tunai'
+                        : payChCategory === 'QRIS'
+                        ? 'Nama QRIS / Merchant'
+                        : 'Label Layanan COD / Tunai'}
+                    </label>
+                    <input
+                      type="text"
+                      value={payChProvider}
+                      onChange={e => setPayChProvider(e.target.value)}
+                      placeholder={
+                        payChCategory === 'BANK'
+                          ? 'Misal: BCA / BRI / Mandiri'
+                          : payChCategory === 'EWALLET'
+                          ? 'Misal: DANA / OVO / GoPay'
+                          : payChCategory === 'QRIS'
+                          ? 'Misal: QRIS Utama / QR DANA Bisnis'
+                          : 'Misal: Tunai / COD WhatsApp Admin'
+                      }
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-semibold text-slate-900"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-700 block">
+                        {payChCategory === 'BANK'
+                          ? 'Nomor Rekening'
+                          : payChCategory === 'EWALLET'
+                          ? 'Nomor HP Non-Tunai'
+                          : payChCategory === 'COD'
+                          ? 'Nomor WhatsApp Admin'
+                          : 'ID Merchant / NMID (Opsional)'}
+                      </label>
+                      <input
+                        type="text"
+                        value={payChNumber}
+                        onChange={e => setPayChNumber(e.target.value)}
+                        placeholder={
+                          payChCategory === 'BANK'
+                            ? 'Contoh: 721506012'
+                            : payChCategory === 'QRIS'
+                            ? 'Contoh: ID1020304050'
+                            : 'Contoh: 081312139893'
+                        }
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold text-blue-800"
+                        required={payChCategory !== 'QRIS'}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-700 block">Atas Nama (Pemilik)</label>
+                      <input
+                        type="text"
+                        value={payChHolder}
+                        onChange={e => setPayChHolder(e.target.value)}
+                        placeholder="Contoh: Syafrizal"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-semibold text-slate-900"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <label className="font-bold text-slate-700 block">
+                      Gambar QR Code ({payChCategory === 'QRIS' ? 'Disarankan' : 'Opsional'})
+                    </label>
+                    {payChQrUrl ? (
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={payChQrUrl}
+                          alt="QR Preview"
+                          className="w-20 h-20 object-contain rounded-lg border border-slate-200 bg-white p-1"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <label className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer">
+                            Ganti QR
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              onChange={handleUploadChannelQr}
+                              className="hidden"
+                              disabled={isProcessingQrMedia}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setPayChQrUrl('')}
+                            className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold cursor-pointer"
+                          >
+                            Hapus QR
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-slate-300 bg-white hover:border-blue-400 cursor-pointer text-slate-700 font-semibold">
+                        <Upload className="w-4 h-4 text-blue-600" />
+                        <span>{isProcessingQrMedia ? 'Memproses gambar...' : 'Upload Gambar QR Code (JPG/PNG)'}</span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          onChange={handleUploadChannelQr}
+                          className="hidden"
+                          disabled={isProcessingQrMedia}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 block">Catatan / Petunjuk Pembayaran (Opsional)</label>
+                    <input
+                      type="text"
+                      value={payChNotes}
+                      onChange={e => setPayChNotes(e.target.value)}
+                      placeholder="Contoh: Transfer sesuai nominal tagihan lalu unggah bukti screenshot."
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-700"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={payChActive}
+                      onChange={e => setPayChActive(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600"
+                    />
+                    <span className="font-bold text-slate-800">Aktifkan &amp; tampilkan di panel peserta</span>
+                  </label>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setIsPaymentModalOpen(false)}
+                      className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold shadow-2xs cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{editingPayChannelId ? 'Simpan Perubahan' : 'Simpan Metode Pembayaran'}</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -9780,7 +11039,13 @@ TINGKAT KESULITAN: Sedang`;
                         </td>
                         <td className="p-2 border border-slate-300">
                           {p.package_name}<br />
-                          <span className="font-mono text-[10px]">Kode: {d.referralCode} (-Rp {d.referralDiscount.toLocaleString('id-ID')})</span>
+                          {d.isUpgrade ? (
+                            <span className="font-mono text-[10px] text-indigo-700">
+                              PERALIHAN (Dari {d.previousPkgName} · Asli Rp {d.originalAmount.toLocaleString('id-ID')} - Rp {d.upgradeCredit.toLocaleString('id-ID')})
+                            </span>
+                          ) : (
+                            <span className="font-mono text-[10px]">Kode: {d.referralCode} (-Rp {d.referralDiscount.toLocaleString('id-ID')})</span>
+                          )}
                         </td>
                         <td className="p-2 border border-slate-300 text-right font-mono font-bold">
                           Rp {p.amount.toLocaleString('id-ID')}

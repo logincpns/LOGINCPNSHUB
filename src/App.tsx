@@ -17,6 +17,7 @@ import { CatEngine } from './components/cat/CatEngine';
 import { FloatingWhatsAppButton } from './components/layout/FloatingWhatsAppButton';
 import { ExamStartConfirmModal } from './components/cat/ExamStartConfirmModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { InstallAppGuideView } from './components/panduan/InstallAppGuideView';
 
 function AppContent() {
   const { currentUser, activeView, examSession } = useApp();
@@ -73,6 +74,7 @@ function AppContent() {
           {activeView === 'riwayat-ujian' && <RiwayatUjianView />}
           {activeView === 'premium' && <PremiumView />}
           {activeView === 'profil-saya' && <ProfilView />}
+          {activeView === 'panduan-instal' && <InstallAppGuideView />}
 
           {/* Super Admin Views per PRD Section 16 */}
           {activeView.startsWith('admin-') &&

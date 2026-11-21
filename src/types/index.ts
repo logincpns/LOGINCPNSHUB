@@ -206,6 +206,10 @@ export interface Payment {
   package_name: string;
   original_amount?: number;
   promo_discount?: number;
+  is_package_upgrade?: boolean;
+  previous_membership_type?: MembershipType;
+  previous_package_name?: string;
+  upgrade_credit_amount?: number;
   referral_code?: string;
   referral_discount?: number;
   amount: number;
@@ -216,7 +220,7 @@ export interface Payment {
   commission_paid_at?: string;
   commission_paid_by?: string;
   commission_proof_url?: string;
-  payment_method: 'TRANSFER_BANK' | 'QRIS' | 'COD_WHATSAPP';
+  payment_method: 'TRANSFER_BANK' | 'EWALLET' | 'QRIS' | 'COD_WHATSAPP';
   bank_name?: string;
   sender_name?: string;
   proof_url: string;
@@ -376,11 +380,33 @@ export interface CalculatorImportPayload {
   importedAt: string;
 }
 
+export interface InstallTutorialImage {
+  id: string;
+  title: string;
+  caption?: string;
+  image_url: string;
+  created_at: string;
+}
+
+export type PaymentChannelCategory = 'BANK' | 'EWALLET' | 'QRIS' | 'COD';
+
+export interface PaymentChannelConfig {
+  id: string;
+  category: PaymentChannelCategory;
+  provider_name: string;
+  account_number: string;
+  account_holder: string;
+  qr_image_url?: string;
+  instructions?: string;
+  is_active: boolean;
+}
+
 // 17.13 settings table
 export interface AppSettings {
   app_name: string;
   headline: string;
   admin_whatsapp: string; // 081312139893
+  non_cash_phone?: string; // Nomor HP pembayaran non-tunai (DANA / OVO / GoPay / konfirmasi)
   admin_email?: string; // loginbimbelasn@gmail.com
   affiliate_commission_amount?: number; // default Rp 10.000
   referral_discount_amount?: number; // default Rp 20.000
@@ -396,8 +422,14 @@ export interface AppSettings {
     account_number: string;
     account_holder: string;
   }[];
+  payment_channels?: PaymentChannelConfig[];
+  qris_image_url?: string;
+  qris_merchant_name?: string;
+  qris_notes?: string;
   google_drive_folder_id: string;
   google_drive_status: 'CONNECTED_SIMULATED' | 'READY';
+  install_tutorial_poster_url?: string;
+  install_tutorial_images?: InstallTutorialImage[];
 }
 
 // 17.14 audit_logs table

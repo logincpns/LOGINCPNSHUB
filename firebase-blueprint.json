@@ -135,8 +135,14 @@
         "user_email": { "type": "string", "format": "email", "maxLength": 160 },
         "package_id": { "type": "string", "maxLength": 128 },
         "package_name": { "type": "string", "maxLength": 160 },
+        "original_amount": { "type": "number" },
+        "promo_discount": { "type": "number" },
+        "is_package_upgrade": { "type": "boolean" },
+        "previous_membership_type": { "type": "string", "enum": ["FREE", "STANDAR", "PREMIUM", "INTENSIF"] },
+        "previous_package_name": { "type": "string", "maxLength": 160 },
+        "upgrade_credit_amount": { "type": "number" },
         "amount": { "type": "number" },
-        "payment_method": { "type": "string", "enum": ["TRANSFER_BANK", "QRIS", "COD_WHATSAPP"] },
+        "payment_method": { "type": "string", "enum": ["TRANSFER_BANK", "EWALLET", "QRIS", "COD_WHATSAPP"] },
         "proof_url": { "type": "string", "maxLength": 500000 },
         "status": { "type": "string", "enum": ["WAITING_PAYMENT", "WAITING_VERIFICATION", "APPROVED", "REJECTED"] },
         "created_at": { "type": "string", "format": "date-time" }
@@ -201,14 +207,22 @@
     },
     "AppSettings": {
       "title": "AppSettings",
-      "description": "Pengaturan aplikasi global, passing grade, rekening pembayaran, dan kalkulator SKD.",
+      "description": "Pengaturan aplikasi global, passing grade, rekening pembayaran, kalkulator SKD, dan panduan instalasi aplikasi.",
       "type": "object",
       "properties": {
         "app_name": { "type": "string", "maxLength": 120 },
         "headline": { "type": "string", "maxLength": 400 },
         "admin_whatsapp": { "type": "string", "maxLength": 32 },
+        "non_cash_phone": { "type": "string", "maxLength": 32 },
         "admin_email": { "type": "string", "maxLength": 160 },
-        "maintenance_mode": { "type": "boolean" }
+        "maintenance_mode": { "type": "boolean" },
+        "qris_image_url": { "type": "string", "maxLength": 350000 },
+        "qris_merchant_name": { "type": "string", "maxLength": 160 },
+        "qris_notes": { "type": "string", "maxLength": 500 },
+        "bank_accounts": { "type": "array" },
+        "payment_channels": { "type": "array" },
+        "install_tutorial_poster_url": { "type": "string", "maxLength": 450000, "description": "Gambar poster panduan instalasi aplikasi di HP/Tablet." },
+        "install_tutorial_images": { "type": "array", "description": "Daftar gambar tutorial langkah instalasi aplikasi di HP/Tablet." }
       },
       "required": ["app_name", "headline", "admin_whatsapp", "maintenance_mode"]
     },

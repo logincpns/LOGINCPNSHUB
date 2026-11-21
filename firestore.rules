@@ -125,6 +125,7 @@ service cloud.firestore {
         data.keys().hasOnly([
           'id', 'user_id', 'user_name', 'user_email', 'user_phone', 'user_registered_at',
           'package_id', 'package_name', 'original_amount', 'promo_discount',
+          'is_package_upgrade', 'previous_membership_type', 'previous_package_name', 'upgrade_credit_amount',
           'referral_code', 'referral_discount', 'amount', 'affiliate_user_id',
           'affiliate_name', 'affiliate_commission', 'commission_status',
           'commission_paid_at', 'commission_paid_by', 'commission_proof_url',
@@ -138,9 +139,13 @@ service cloud.firestore {
         data.package_id is string && data.package_id.size() <= 128 &&
         data.package_name is string && data.package_name.size() <= 160 &&
         data.amount is number && data.amount >= 0 &&
-        data.payment_method in ['TRANSFER_BANK', 'QRIS', 'COD_WHATSAPP'] &&
+        data.payment_method in ['TRANSFER_BANK', 'EWALLET', 'QRIS', 'COD_WHATSAPP'] &&
         data.status in ['WAITING_PAYMENT', 'WAITING_VERIFICATION', 'APPROVED', 'REJECTED'] &&
         data.created_at is string && data.created_at.size() <= 64 &&
+        (!('is_package_upgrade' in data) || data.is_package_upgrade is bool) &&
+        (!('previous_membership_type' in data) || data.previous_membership_type in ['FREE', 'STANDAR', 'PREMIUM', 'INTENSIF']) &&
+        (!('previous_package_name' in data) || (data.previous_package_name is string && data.previous_package_name.size() <= 160)) &&
+        (!('upgrade_credit_amount' in data) || (data.upgrade_credit_amount is number && data.upgrade_credit_amount >= 0)) &&
         (!('proof_url' in data) || (data.proof_url is string && data.proof_url.size() <= 500000));
     }
 
@@ -183,7 +188,14 @@ service cloud.firestore {
         data.app_name is string && data.app_name.size() <= 120 &&
         data.headline is string && data.headline.size() <= 400 &&
         data.admin_whatsapp is string && data.admin_whatsapp.size() <= 32 &&
-        data.maintenance_mode is bool;
+        data.maintenance_mode is bool &&
+        (!('non_cash_phone' in data) || (data.non_cash_phone is string && data.non_cash_phone.size() <= 32)) &&
+        (!('admin_email' in data) || (data.admin_email is string && data.admin_email.size() <= 160)) &&
+        (!('qris_merchant_name' in data) || (data.qris_merchant_name is string && data.qris_merchant_name.size() <= 160)) &&
+        (!('qris_notes' in data) || (data.qris_notes is string && data.qris_notes.size() <= 500)) &&
+        (!('qris_image_url' in data) || (data.qris_image_url is string && data.qris_image_url.size() <= 350000)) &&
+        (!('bank_accounts' in data) || (data.bank_accounts is list && data.bank_accounts.size() <= 30)) &&
+        (!('payment_channels' in data) || (data.payment_channels is list && data.payment_channels.size() <= 30));
     }
 
     function isValidNotification(data) {

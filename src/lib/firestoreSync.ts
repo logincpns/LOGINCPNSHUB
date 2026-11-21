@@ -8,6 +8,7 @@ import {
   query,
   where,
   writeBatch,
+  onSnapshot,
 } from 'firebase/firestore';
 import type { User as FirebaseAuthUser } from 'firebase/auth';
 import { db, auth, OperationType, handleFirestoreError, stripUndefined } from './firebase';
@@ -252,6 +253,20 @@ export async function fetchPublicCatalog(): Promise<{
   }
 
   return result;
+}
+
+export function subscribeToAppSettings(onUpdate: (settings: AppSettings) => void): () => void {
+  return onSnapshot(
+    doc(db, 'app_settings', 'global'),
+    snap => {
+      if (snap.exists()) {
+        onUpdate(snap.data() as AppSettings);
+      }
+    },
+    error => {
+      console.warn('App settings live sync listener skipped:', error);
+    }
+  );
 }
 
 export async function fetchAuthenticatedData(fbUser: FirebaseAuthUser): Promise<{

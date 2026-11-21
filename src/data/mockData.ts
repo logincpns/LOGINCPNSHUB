@@ -1741,6 +1741,7 @@ export const SEED_SETTINGS: AppSettings = {
   app_name: 'LOGIN CPNS',
   headline: 'Persiapkan Dirimu, Raih Kelulusan CPNS.',
   admin_whatsapp: '081312139893',
+  non_cash_phone: '081312139893',
   admin_email: 'loginbimbelasn@gmail.com',
   affiliate_commission_amount: 10000,
   referral_discount_amount: 20000,
@@ -1782,6 +1783,47 @@ export const SEED_SETTINGS: AppSettings = {
       account_holder: 'Syafriza'
     }
   ],
+  payment_channels: [
+    {
+      id: 'paych-bsi',
+      category: 'BANK',
+      provider_name: 'BSI (Bank Syariah Indonesia)',
+      account_number: '721506012',
+      account_holder: 'Syafrizal',
+      instructions: 'Transfer sesuai total nominal tagihan ke rekening BSI di atas.',
+      is_active: true
+    },
+    {
+      id: 'paych-bpd-aceh',
+      category: 'BANK',
+      provider_name: 'Bank BPD Aceh',
+      account_number: '07002200023195',
+      account_holder: 'Syafriza',
+      instructions: 'Transfer sesuai total nominal tagihan ke rekening Bank Aceh di atas.',
+      is_active: true
+    },
+    {
+      id: 'paych-dana',
+      category: 'EWALLET',
+      provider_name: 'DANA',
+      account_number: '081312139893',
+      account_holder: 'Syafrizal / LOGIN CPNS',
+      instructions: 'Kirim saldo non-tunai via DANA ke nomor HP di atas, lalu unggah bukti screenshot transaksi.',
+      is_active: true
+    },
+    {
+      id: 'paych-ovo',
+      category: 'EWALLET',
+      provider_name: 'OVO',
+      account_number: '081312139893',
+      account_holder: 'Syafrizal / LOGIN CPNS',
+      instructions: 'Kirim saldo non-tunai via OVO ke nomor HP di atas, lalu unggah bukti screenshot transaksi.',
+      is_active: true
+    }
+  ],
+  qris_image_url: '',
+  qris_merchant_name: 'QRIS LOGIN CPNS EDUKASI',
+  qris_notes: 'Mendukung GoPay, OVO, DANA, ShopeePay, LinkAja, BSI Mobile & Seluruh Bank',
   google_drive_folder_id: '1aB2cD3eFgHiJkLmNoPqRsTuVwXyZ',
   google_drive_status: 'CONNECTED_SIMULATED'
 };

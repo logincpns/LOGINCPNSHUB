@@ -23,7 +23,8 @@ import {
   MembershipType,
   AffiliateStatus,
   SkdCalculatorConfig,
-  CalculatorImportPayload
+  CalculatorImportPayload,
+  PaymentChannelConfig
 } from '../types';
 import {
   SEED_USERS,
@@ -53,7 +54,8 @@ import {
   seedInitialFirestoreIfAdmin,
   syncDoc,
   removeDoc,
-  toFirestoreUserPayload
+  toFirestoreUserPayload,
+  subscribeToAppSettings
 } from '../lib/firestoreSync';
 
 export const DEFAULT_REFERRAL_CODE = 'LOGINCPNS';
@@ -90,6 +92,7 @@ export interface ReferralValidationResult {
   isEmpty?: boolean;
   isOfficial?: boolean;
   isSelfReferral?: boolean;
+  isAlreadyUsed?: boolean;
   normalizedCode?: string;
   discount: number;
   commission: number;
@@ -106,7 +109,8 @@ export type MemberNavView =
   | 'kalkulator-skd-skb'
   | 'riwayat-ujian'
   | 'premium'
-  | 'profil-saya';
+  | 'profil-saya'
+  | 'panduan-instal';
 
 export function hasPaidQuestionAccess(user: User | null): boolean {
   if (!user) return false;
@@ -190,6 +194,132 @@ export function getMembershipDisplayLabel(type?: MembershipType): string {
     default:
       return 'Member Gratis';
   }
+}
+
+export function getMembershipTierRank(type?: MembershipType): number {
+  switch (type) {
+    case 'STANDAR':
+      return 1;
+    case 'PREMIUM':
+      return 2;
+    case 'INTENSIF':
+      return 3;
+    default:
+      return 0;
+  }
+}
+
+export function resolvePackageTier(pkg: PremiumPackage): MembershipType {
+  if (pkg.tier_key) return pkg.tier_key;
+  const lower = pkg.package_name.toLowerCase();
+  if (pkg.id === 'pkg-standar' || lower.includes('standar')) return 'STANDAR';
+  if (pkg.id === 'pkg-2' || lower.includes('intensif')) return 'INTENSIF';
+  return 'PREMIUM';
+}
+
+export function hasUserUsedReferralCode(userId: string | undefined, payments: Payment[]): boolean {
+  if (!userId) return false;
+  return payments.some(
+    p =>
+      p.user_id === userId &&
+      (p.status === 'APPROVED' || p.status === 'WAITING_VERIFICATION') &&
+      Boolean(p.referral_code) &&
+      (p.referral_discount || 0) > 0
+  );
+}
+
+export interface PackagePricingBreakdown {
+  targetTier: MembershipType;
+  isUpgrade: boolean;
+  isCurrentOrLowerTier: boolean;
+  previousTier?: MembershipType;
+  previousPackageName?: string;
+  targetOriginalPrice: number;
+  promoDiscount: number;
+  upgradeCreditAmount: number;
+  priceBeforeReferral: number;
+  referralAllowed: boolean;
+  referralBlockedReason?: string;
+  referralDiscount: number;
+  finalPayableAmount: number;
+}
+
+export function calculatePackagePricing(
+  targetPkg: PremiumPackage,
+  currentUser: User | null,
+  packages: PremiumPackage[],
+  payments: Payment[],
+  referralValidation?: ReferralValidationResult | null
+): PackagePricingBreakdown {
+  const targetTier = resolvePackageTier(targetPkg);
+  const effectiveCurrentTier: MembershipType =
+    currentUser?.role === 'SUPER_ADMIN' ? 'FREE' : currentUser?.membership_type || 'FREE';
+
+  const currentRank = getMembershipTierRank(effectiveCurrentTier);
+  const targetRank = getMembershipTierRank(targetTier);
+  const isUpgrade = currentRank > 0 && targetRank > currentRank;
+  const isCurrentOrLowerTier = currentRank > 0 && targetRank <= currentRank;
+
+  const hasOriginalHigher =
+    Boolean(targetPkg.original_price) && (targetPkg.original_price || 0) > targetPkg.price;
+  const rawOriginalPrice = hasOriginalHigher ? (targetPkg.original_price as number) : targetPkg.price;
+
+  if (isUpgrade) {
+    const previousPkg = packages.find(pk => resolvePackageTier(pk) === effectiveCurrentTier);
+    const fallbackPrevPrice = effectiveCurrentTier === 'STANDAR' || effectiveCurrentTier === 'PREMIUM' ? 150000 : 0;
+    const upgradeCreditAmount = previousPkg?.price ?? fallbackPrevPrice;
+    const previousPackageName = previousPkg?.package_name || getMembershipDisplayLabel(effectiveCurrentTier);
+    const targetOriginalPrice = rawOriginalPrice;
+    const priceBeforeReferral = Math.max(0, targetOriginalPrice - upgradeCreditAmount);
+
+    return {
+      targetTier,
+      isUpgrade: true,
+      isCurrentOrLowerTier: false,
+      previousTier: effectiveCurrentTier,
+      previousPackageName,
+      targetOriginalPrice,
+      promoDiscount: 0,
+      upgradeCreditAmount,
+      priceBeforeReferral,
+      referralAllowed: false,
+      referralBlockedReason:
+        'Kode referral tidak dapat digunakan kembali (maksimal 1x). Peralihan paket otomatis menghitung selisih dari harga asli paket dikurangi paket Anda saat ini.',
+      referralDiscount: 0,
+      finalPayableAmount: priceBeforeReferral
+    };
+  }
+
+  const allowPkgDiscount = targetPkg.allow_discount !== false;
+  const targetOriginalPrice = allowPkgDiscount ? rawOriginalPrice : targetPkg.price;
+  const promoDiscount = allowPkgDiscount ? Math.max(0, targetOriginalPrice - targetPkg.price) : 0;
+  const alreadyUsedReferral = hasUserUsedReferralCode(currentUser?.id, payments);
+
+  const referralAllowed = allowPkgDiscount && !alreadyUsedReferral;
+  const referralBlockedReason = !allowPkgDiscount
+    ? 'Promo & potongan kode referral tidak berlaku pada Paket Standar.'
+    : alreadyUsedReferral
+    ? 'Kode referral tidak dapat digunakan 2 kali (sudah pernah digunakan pada transaksi Anda sebelumnya).'
+    : undefined;
+
+  const referralDiscount =
+    referralAllowed && referralValidation && referralValidation.isValid
+      ? referralValidation.discount
+      : 0;
+
+  return {
+    targetTier,
+    isUpgrade: false,
+    isCurrentOrLowerTier,
+    targetOriginalPrice,
+    promoDiscount,
+    upgradeCreditAmount: 0,
+    priceBeforeReferral: targetPkg.price,
+    referralAllowed,
+    referralBlockedReason,
+    referralDiscount,
+    finalPayableAmount: Math.max(0, targetPkg.price - referralDiscount)
+  };
 }
 
 export function getQuestionPackageIds(q: Question): string[] {
@@ -384,7 +514,7 @@ interface AppContextType {
   // Member Features
   submitPaymentProof: (
     packageId: string,
-    paymentMethod: 'TRANSFER_BANK' | 'QRIS' | 'COD_WHATSAPP',
+    paymentMethod: 'TRANSFER_BANK' | 'EWALLET' | 'QRIS' | 'COD_WHATSAPP',
     bankName: string,
     senderName: string,
     proofUrl: string,
@@ -643,35 +773,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [leaderboards, setLeaderboards] = useState<LeaderboardEntry[]>(SEED_LEADERBOARD);
   const [results, setResults] = useState<ExamResult[]>(() => getStorage(STORAGE_KEYS.RESULTS, SEED_RESULTS));
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    const stored = getStorage<AppSettings>(STORAGE_KEYS.SETTINGS, SEED_SETTINGS);
-    const hasLegacyDemoBanks = stored.bank_accounts?.some(
+  const normalizeAppSettings = (raw: Partial<AppSettings>): AppSettings => {
+    const hasLegacyDemoBanks = raw.bank_accounts?.some(
       b => b.account_number === '8830-1234-5678' || b.account_number === '137-00-9876543-2'
     );
-    const base =
-      hasLegacyDemoBanks || !stored.bank_accounts || stored.bank_accounts.length === 0
-        ? { ...stored, bank_accounts: SEED_SETTINGS.bank_accounts }
-        : stored;
+    const baseBanks =
+      hasLegacyDemoBanks || !raw.bank_accounts || raw.bank_accounts.length === 0
+        ? SEED_SETTINGS.bank_accounts
+        : raw.bank_accounts;
+
+    let resolvedChannels: PaymentChannelConfig[];
+    if (Array.isArray(raw.payment_channels)) {
+      resolvedChannels = raw.payment_channels;
+    } else {
+      const derivedBanks: PaymentChannelConfig[] = baseBanks.map((b, idx) => ({
+        id: `paych-bank-${idx + 1}`,
+        category: 'BANK',
+        provider_name: b.bank_name,
+        account_number: b.account_number,
+        account_holder: b.account_holder,
+        instructions: `Transfer sesuai total nominal tagihan ke rekening ${b.bank_name}.`,
+        is_active: true
+      }));
+      const defaultNonBanks = (SEED_SETTINGS.payment_channels || []).filter(c => c.category !== 'BANK');
+      resolvedChannels = [...derivedBanks, ...defaultNonBanks];
+    }
+
+    const syncedBankAccounts = resolvedChannels
+      .filter(c => c.category === 'BANK' && c.is_active)
+      .map(c => ({
+        bank_name: c.provider_name,
+        account_number: c.account_number,
+        account_holder: c.account_holder
+      }));
+
     return {
       ...SEED_SETTINGS,
-      ...base,
-      admin_email: base.admin_email || OFFICIAL_SENDER_EMAIL,
+      ...raw,
+      admin_email: raw.admin_email || OFFICIAL_SENDER_EMAIL,
+      non_cash_phone: raw.non_cash_phone ?? raw.admin_whatsapp ?? SEED_SETTINGS.non_cash_phone ?? SEED_SETTINGS.admin_whatsapp,
+      qris_image_url: raw.qris_image_url ?? SEED_SETTINGS.qris_image_url ?? '',
+      qris_merchant_name: raw.qris_merchant_name ?? SEED_SETTINGS.qris_merchant_name ?? 'QRIS LOGIN CPNS EDUKASI',
+      qris_notes:
+        raw.qris_notes ??
+        SEED_SETTINGS.qris_notes ??
+        'Mendukung GoPay, OVO, DANA, ShopeePay, LinkAja, BSI Mobile & Seluruh Bank',
+      payment_channels: resolvedChannels,
+      bank_accounts: syncedBankAccounts.length > 0 ? syncedBankAccounts : baseBanks,
       affiliate_commission_amount:
-        base.affiliate_commission_amount ?? SEED_SETTINGS.affiliate_commission_amount ?? AFFILIATE_COMMISSION_AMOUNT,
+        raw.affiliate_commission_amount ?? SEED_SETTINGS.affiliate_commission_amount ?? AFFILIATE_COMMISSION_AMOUNT,
       referral_discount_amount:
-        base.referral_discount_amount ?? SEED_SETTINGS.referral_discount_amount ?? REFERRAL_DISCOUNT_AMOUNT,
+        raw.referral_discount_amount ?? SEED_SETTINGS.referral_discount_amount ?? REFERRAL_DISCOUNT_AMOUNT,
       min_commission_withdrawal:
-        base.min_commission_withdrawal ?? SEED_SETTINGS.min_commission_withdrawal ?? MIN_COMMISSION_WITHDRAWAL,
+        raw.min_commission_withdrawal ?? SEED_SETTINGS.min_commission_withdrawal ?? MIN_COMMISSION_WITHDRAWAL,
       lock_materials_for_premium_only:
-        base.lock_materials_for_premium_only ?? SEED_SETTINGS.lock_materials_for_premium_only ?? true,
+        raw.lock_materials_for_premium_only ?? SEED_SETTINGS.lock_materials_for_premium_only ?? true,
       standar_questions_only:
-        base.standar_questions_only ?? SEED_SETTINGS.standar_questions_only ?? true,
+        raw.standar_questions_only ?? SEED_SETTINGS.standar_questions_only ?? true,
       skd_calculator_config: {
         ...DEFAULT_SKD_CALCULATOR_CONFIG,
         ...(SEED_SETTINGS.skd_calculator_config || {}),
-        ...(base.skd_calculator_config || {})
+        ...(raw.skd_calculator_config || {})
       }
     };
+  };
+
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const stored = getStorage<AppSettings>(STORAGE_KEYS.SETTINGS, SEED_SETTINGS);
+    return normalizeAppSettings(stored);
   });
 
   const activeCommissionAmount = settings.affiliate_commission_amount ?? AFFILIATE_COMMISSION_AMOUNT;
@@ -731,13 +900,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const pub = await fetchPublicCatalog();
         if (!active) return;
         if (pub.packages && pub.packages.length > 0) setPackages(pub.packages);
-        if (pub.settings) setSettings(prev => ({ ...prev, ...pub.settings }));
+        if (pub.settings) setSettings(prev => normalizeAppSettings({ ...prev, ...pub.settings }));
         if (pub.announcements && pub.announcements.length > 0) setAnnouncements(pub.announcements);
         if (pub.groupSessions && pub.groupSessions.length > 0) setGroupSessions(pub.groupSessions);
       } catch (err) {
         console.warn('Public catalog sync skipped:', err);
       }
     })();
+
+    const unsubSettings = subscribeToAppSettings(remoteSettings => {
+      if (!active) return;
+      setSettings(prev => normalizeAppSettings({ ...prev, ...remoteSettings }));
+    });
+
+    const handleStorageSync = (ev: StorageEvent) => {
+      if (ev.key === STORAGE_KEYS.SETTINGS && ev.newValue) {
+        try {
+          const parsed = JSON.parse(ev.newValue) as AppSettings;
+          setSettings(normalizeAppSettings(parsed));
+        } catch {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageSync);
 
     const unsubscribe = onAuthStateChanged(auth, async fbUser => {
       if (!fbUser || !fbUser.emailVerified || !active) return;
@@ -790,6 +976,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       active = false;
       unsubscribe();
+      unsubSettings();
+      window.removeEventListener('storage', handleStorageSync);
     };
   }, []);
 
@@ -1053,6 +1241,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Affiliate & Referral Logic
   const validateReferralCode = (code: string, buyerUserId?: string): ReferralValidationResult => {
+    if (buyerUserId && hasUserUsedReferralCode(buyerUserId, payments)) {
+      return {
+        isValid: false,
+        isAlreadyUsed: true,
+        discount: 0,
+        commission: 0,
+        message: 'Kode referral hanya berlaku 1 kali per peserta dan sudah digunakan pada transaksi Anda sebelumnya (tidak bisa digunakan 2 kali).'
+      };
+    }
+
     const normalized = code.trim().toUpperCase();
     if (!normalized) {
       return {
@@ -2286,7 +2484,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Member Payment Submission
   const submitPaymentProof = (
     packageId: string,
-    paymentMethod: 'TRANSFER_BANK' | 'QRIS' | 'COD_WHATSAPP',
+    paymentMethod: 'TRANSFER_BANK' | 'EWALLET' | 'QRIS' | 'COD_WHATSAPP',
     bankName: string,
     senderName: string,
     proofUrl: string,
@@ -2294,15 +2492,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     if (!currentUser) return;
     const pkg = packages.find(p => p.id === packageId) || packages[0];
-    const allowDiscount = pkg.allow_discount !== false;
-    const originalAmount =
-      allowDiscount && pkg.original_price && pkg.original_price > pkg.price ? pkg.original_price : pkg.price;
-    const promoDiscount = allowDiscount ? Math.max(0, originalAmount - pkg.price) : 0;
+    const refValidation = referralCode ? validateReferralCode(referralCode, currentUser.id) : null;
+    const pricing = calculatePackagePricing(pkg, currentUser, packages, payments, refValidation);
 
-    const refValidation = allowDiscount && referralCode ? validateReferralCode(referralCode, currentUser.id) : null;
-    const hasValidRef = Boolean(allowDiscount && refValidation && refValidation.isValid);
-    const referralDiscount = hasValidRef ? refValidation!.discount : 0;
-    const finalAmount = Math.max(0, pkg.price - referralDiscount);
+    const hasValidRef = Boolean(
+      pricing.referralAllowed && refValidation && refValidation.isValid
+    );
+    const referralDiscount = pricing.referralDiscount;
+    const finalAmount = pricing.finalPayableAmount;
     const affiliateCommission = hasValidRef ? refValidation!.commission : 0;
 
     const newPayment: Payment = {
@@ -2314,8 +2511,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       user_registered_at: currentUser.created_at,
       package_id: pkg.id,
       package_name: pkg.package_name,
-      original_amount: originalAmount,
-      promo_discount: promoDiscount,
+      original_amount: pricing.targetOriginalPrice,
+      promo_discount: pricing.promoDiscount,
+      is_package_upgrade: pricing.isUpgrade || undefined,
+      previous_membership_type: pricing.isUpgrade ? pricing.previousTier : undefined,
+      previous_package_name: pricing.isUpgrade ? pricing.previousPackageName : undefined,
+      upgrade_credit_amount: pricing.isUpgrade ? pricing.upgradeCreditAmount : undefined,
       referral_code: hasValidRef ? refValidation!.normalizedCode : undefined,
       referral_discount: referralDiscount,
       amount: finalAmount,
@@ -2336,11 +2537,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'SUBMIT_PAYMENT',
       'PAYMENTS',
       newPayment.id,
-      `Mengajukan pembayaran ${pkg.package_name} Rp ${finalAmount.toLocaleString('id-ID')}${hasValidRef ? ` (Kode Referral: ${refValidation!.normalizedCode})` : ''}`
+      pricing.isUpgrade
+        ? `Mengajukan peralihan paket (${pricing.previousPackageName} -> ${pkg.package_name}) selisih Rp ${finalAmount.toLocaleString('id-ID')}`
+        : `Mengajukan pembayaran ${pkg.package_name} Rp ${finalAmount.toLocaleString('id-ID')}${hasValidRef ? ` (Kode Referral: ${refValidation!.normalizedCode})` : ''}`
     );
     addNotification(
-      'Pembayaran Menunggu Verifikasi',
-      `Bukti transfer Rp ${finalAmount.toLocaleString('id-ID')} Anda sedang diverifikasi admin.`,
+      pricing.isUpgrade ? 'Peralihan Paket Menunggu Verifikasi' : 'Pembayaran Menunggu Verifikasi',
+      pricing.isUpgrade
+        ? `Bukti bayar selisih peralihan ke ${pkg.package_name} sebesar Rp ${finalAmount.toLocaleString('id-ID')} sedang diverifikasi admin.`
+        : `Bukti transfer Rp ${finalAmount.toLocaleString('id-ID')} Anda sedang diverifikasi admin.`,
       'PAYMENT',
       currentUser.id
     );
@@ -2348,8 +2553,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       recipientUserId: currentUser.id,
       recipientName: currentUser.full_name,
       recipientEmail: currentUser.email,
-      subject: `[LOGIN CPNS] Menunggu Verifikasi Pembayaran - ${pkg.package_name}`,
-      body: `Halo ${currentUser.full_name},\n\nBukti pembayaran Anda telah kami terima dan berstatus MENUNGGU VERIFIKASI ADMIN.\n\nDetail Pembayaran:\n- ID Transaksi: ${newPayment.id}\n- Paket: ${pkg.package_name}\n- Metode: ${paymentMethod} (${bankName})\n- Kode Referral: ${newPayment.referral_code || '-'} (-Rp ${referralDiscount.toLocaleString('id-ID')})\n- Total Dibayar: Rp ${finalAmount.toLocaleString('id-ID')}\n\nSetelah Admin selesai memeriksa bukti transfer, Anda akan menerima email konfirmasi bahwa akun Premium telah aktif.\n\nSalam Sukses ASN,\nTim LOGIN CPNS (${settings.admin_email || OFFICIAL_SENDER_EMAIL})`,
+      subject: pricing.isUpgrade
+        ? `[LOGIN CPNS] Menunggu Verifikasi Peralihan Paket - ${pkg.package_name}`
+        : `[LOGIN CPNS] Menunggu Verifikasi Pembayaran - ${pkg.package_name}`,
+      body: pricing.isUpgrade
+        ? `Halo ${currentUser.full_name},\n\nPengajuan PERALIHAN PAKET BELAJAR Anda telah kami terima dan berstatus MENUNGGU VERIFIKASI ADMIN.\n\nDetail Peralihan Paket:\n- ID Transaksi: ${newPayment.id}\n- Paket Sebelumnya: ${pricing.previousPackageName}\n- Paket Tujuan: ${pkg.package_name}\n- Harga Asli Paket Tujuan: Rp ${pricing.targetOriginalPrice.toLocaleString('id-ID')}\n- Dikurangi Paket Sebelumnya: - Rp ${pricing.upgradeCreditAmount.toLocaleString('id-ID')}\n- Selisih Total Dibayar: Rp ${finalAmount.toLocaleString('id-ID')}\n- Metode: ${paymentMethod} (${bankName})\n\nSetelah Admin memverifikasi bukti transfer Anda, status paket Anda akan dinaikkan secara resmi ke ${pkg.package_name}.\n\nSalam Sukses ASN,\nTim LOGIN CPNS (${settings.admin_email || OFFICIAL_SENDER_EMAIL})`
+        : `Halo ${currentUser.full_name},\n\nBukti pembayaran Anda telah kami terima dan berstatus MENUNGGU VERIFIKASI ADMIN.\n\nDetail Pembayaran:\n- ID Transaksi: ${newPayment.id}\n- Paket: ${pkg.package_name}\n- Metode: ${paymentMethod} (${bankName})\n- Kode Referral: ${newPayment.referral_code || '-'} (-Rp ${referralDiscount.toLocaleString('id-ID')})\n- Total Dibayar: Rp ${finalAmount.toLocaleString('id-ID')}\n\nSetelah Admin selesai memeriksa bukti transfer, Anda akan menerima email konfirmasi bahwa akun Premium telah aktif.\n\nSalam Sukses ASN,\nTim LOGIN CPNS (${settings.admin_email || OFFICIAL_SENDER_EMAIL})`,
       category: 'WAITING_PAYMENT',
       relatedEntityId: newPayment.id
     });
@@ -2558,14 +2767,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const recipientEmail = buyerUser?.email || payment.user_email;
     const tierLabel = getMembershipDisplayLabel(resolvedTier);
 
-    addAudit('APPROVE_PAYMENT', 'PAYMENTS', paymentId, `Menyetujui pembayaran ${paymentId} & mengaktifkan ${tierLabel} untuk ${payment.user_name}`);
-    addNotification('Pembayaran Disetujui!', `Selamat! Paket ${tierLabel} Anda telah aktif selama ${durationDays} hari.`, 'PREMIUM', payment.user_id);
+    const isUpgradePayment = Boolean(payment.is_package_upgrade);
+    addAudit(
+      'APPROVE_PAYMENT',
+      'PAYMENTS',
+      paymentId,
+      isUpgradePayment
+        ? `Menyetujui peralihan paket ${paymentId} (${payment.previous_package_name || payment.previous_membership_type} -> ${tierLabel}) untuk ${payment.user_name}`
+        : `Menyetujui pembayaran ${paymentId} & mengaktifkan ${tierLabel} untuk ${payment.user_name}`
+    );
+    addNotification(
+      isUpgradePayment ? 'Peralihan Paket Disetujui!' : 'Pembayaran Disetujui!',
+      isUpgradePayment
+        ? `Selamat! Status paket belajar Anda telah resmi naik ke ${tierLabel} selama ${durationDays} hari.`
+        : `Selamat! Paket ${tierLabel} Anda telah aktif selama ${durationDays} hari.`,
+      'PREMIUM',
+      payment.user_id
+    );
     recordEmailLog({
       recipientUserId: payment.user_id,
       recipientName: payment.user_name,
       recipientEmail,
-      subject: `[LOGIN CPNS] Pembayaran Berhasil & ${tierLabel} Aktif - Silakan Belajar!`,
-      body: `Halo ${payment.user_name},\n\nSelamat! Pembayaran Anda untuk paket "${payment.package_name}" sebesar Rp ${payment.amount.toLocaleString('id-ID')} telah BERHASIL diverifikasi.\n\nStatus Akun Anda Sekarang: ${tierLabel.toUpperCase()} AKTIF (Berlaku hingga ${new Date(expiryStr).toLocaleDateString('id-ID')}).\n\nSilakan langsung login dan manfaatkan seluruh fasilitas belajar sesuai paket Anda!\n\nSalam Sukses ASN,\nTim LOGIN CPNS (${settings.admin_email || OFFICIAL_SENDER_EMAIL})`,
+      subject: isUpgradePayment
+        ? `[LOGIN CPNS] Peralihan Paket Berhasil & Status Naik ke ${tierLabel}!`
+        : `[LOGIN CPNS] Pembayaran Berhasil & ${tierLabel} Aktif - Silakan Belajar!`,
+      body: isUpgradePayment
+        ? `Halo ${payment.user_name},\n\nSelamat! Pengajuan peralihan paket dari ${payment.previous_package_name || 'Paket Sebelumnya'} ke "${payment.package_name}" (selisih Rp ${payment.amount.toLocaleString('id-ID')}) telah BERHASIL diverifikasi Admin.\n\nStatus Akun Anda Sekarang NAIK MENJADI: ${tierLabel.toUpperCase()} AKTIF (Berlaku hingga ${new Date(expiryStr).toLocaleDateString('id-ID')}).\n\nSilakan langsung manfaatkan seluruh fasilitas baru sesuai paket Anda!\n\nSalam Sukses ASN,\nTim LOGIN CPNS (${settings.admin_email || OFFICIAL_SENDER_EMAIL})`
+        : `Halo ${payment.user_name},\n\nSelamat! Pembayaran Anda untuk paket "${payment.package_name}" sebesar Rp ${payment.amount.toLocaleString('id-ID')} telah BERHASIL diverifikasi.\n\nStatus Akun Anda Sekarang: ${tierLabel.toUpperCase()} AKTIF (Berlaku hingga ${new Date(expiryStr).toLocaleDateString('id-ID')}).\n\nSilakan langsung login dan manfaatkan seluruh fasilitas belajar sesuai paket Anda!\n\nSalam Sukses ASN,\nTim LOGIN CPNS (${settings.admin_email || OFFICIAL_SENDER_EMAIL})`,
       category: 'PAYMENT_APPROVED',
       relatedEntityId: payment.id
     });
@@ -2792,10 +3020,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {
-    const nextSettings = { ...settings, ...newSettings };
+    const merged: Partial<AppSettings> = { ...settings, ...newSettings };
+    if (newSettings.payment_channels && !newSettings.bank_accounts) {
+      merged.bank_accounts = newSettings.payment_channels
+        .filter(c => c.category === 'BANK' && c.is_active)
+        .map(c => ({
+          bank_name: c.provider_name,
+          account_number: c.account_number,
+          account_holder: c.account_holder
+        }));
+    }
+    const nextSettings = normalizeAppSettings(merged);
     setSettings(nextSettings);
     void syncDoc('app_settings', 'global', nextSettings as unknown as Record<string, unknown>, OperationType.UPDATE).catch(() => {});
-    addAudit('UPDATE_SETTINGS', 'SETTINGS', 'APP', 'Memperbarui konfigurasi sistem');
+    addAudit('UPDATE_SETTINGS', 'SETTINGS', 'APP', 'Memperbarui konfigurasi sistem & metode pembayaran');
   };
 
   const updatePassingGrade = (pg: PassingGradeConfig) => {

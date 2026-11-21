@@ -30,7 +30,8 @@ import {
   Megaphone,
   Film,
   PanelLeftClose,
-  Calculator
+  Calculator,
+  Smartphone
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -106,7 +107,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       lockedBadgeLabel: 'Intensif'
     },
     { id: 'premium', label: '7. Paket Belajar', icon: Crown },
-    { id: 'profil-saya', label: '8. Profil', icon: User }
+    { id: 'profil-saya', label: '8. Profil', icon: User },
+    { id: 'panduan-instal', label: '9. Panduan Instal Aplikasi di HP', icon: Smartphone }
   ];
 
   // PRD Section 16 Super Admin Menus
@@ -321,7 +323,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </>
           )}
 
-          {/* 9. Keluar / Logout */}
+          {/* 10. Keluar / Logout */}
           <div className="pt-2 border-t border-slate-100">
             <button
               onClick={() => {
@@ -331,7 +333,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
             >
               <LogOut className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{isViewingAdmin && isSuperAdmin ? '16. Keluar' : '9. Keluar'}</span>
+              <span>{isViewingAdmin && isSuperAdmin ? '16. Keluar' : '10. Keluar'}</span>
             </button>
           </div>
         </div>

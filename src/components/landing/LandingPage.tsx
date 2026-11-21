@@ -409,7 +409,7 @@ export const LandingPage: React.FC = () => {
                         Daftar &amp; Ambil Paket Ini
                       </button>
                       <p className="text-[10px] text-center text-slate-400 mt-2">
-                        Pembayaran via Transfer Bank, QRIS, atau COD WhatsApp Admin {settings.admin_whatsapp}
+                        Pembayaran via Transfer Bank, E-Wallet (DANA/OVO), QRIS, atau WhatsApp Admin {settings.admin_whatsapp}
                       </p>
                     </div>
                   </div>
