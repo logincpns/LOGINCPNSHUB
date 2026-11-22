@@ -216,12 +216,35 @@ export const AdminDashboardView: React.FC = () => {
   const [pickHideAlreadyAssigned, setPickHideAlreadyAssigned] = useState<boolean>(false);
   const [pickSelectedIds, setPickSelectedIds] = useState<string[]>([]);
 
-  // --- Sub-state for Bank Soal View Mode & Package Filter ---
+  // --- Sub-state for Bank Soal View Mode & Hierarchical Menu + Package Filter ---
   const [questionViewMode, setQuestionViewMode] = useState<'PACKAGES' | 'ALL_QUESTIONS'>('PACKAGES');
+  const [adminBankMenuFilter, setAdminBankMenuFilter] = useState<
+    'ALL' | 'TRYOUT_LENGKAP' | 'LATIHAN_HARIAN' | 'TRYOUT_KATEGORI' | 'TRYOUT_BARENG'
+  >('ALL');
+  const [adminBankCatFilter, setAdminBankCatFilter] = useState<'ALL' | QuestionCategory | 'CAMPURAN'>('ALL');
+  const [adminBankTierFilter, setAdminBankTierFilter] = useState<'ALL' | PackageAccessTier>('ALL');
+  const [adminBankSortBy, setAdminBankSortBy] = useState<
+    | 'DEFAULT'
+    | 'NAME_ASC'
+    | 'NAME_DESC'
+    | 'NEWEST'
+    | 'OLDEST'
+    | 'MOST_QUESTIONS'
+    | 'FEWEST_QUESTIONS'
+    | 'PUBLISHED_FIRST'
+    | 'UNPUBLISHED_FIRST'
+  >('DEFAULT');
+  const [adminBankSearch, setAdminBankSearch] = useState<string>('');
   const [selectedPackageFilter, setSelectedPackageFilter] = useState('ALL');
   const [selectedBankQuestionIds, setSelectedBankQuestionIds] = useState<string[]>([]);
   const [bulkTargetPkgId, setBulkTargetPkgId] = useState<string>('');
   const [bankAssignNotice, setBankAssignNotice] = useState<string>('');
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // --- Sub-state for Create/Edit Package / Kotak Soal Modal ---
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
@@ -1179,6 +1202,8 @@ export const AdminDashboardView: React.FC = () => {
     const matchedPkg = practicePackages.find(p => p.id === packageId);
     if (matchedPkg && matchedPkg.category !== 'CAMPURAN') {
       setQCat(matchedPkg.category);
+    } else if (!matchedPkg && adminBankCatFilter !== 'ALL' && adminBankCatFilter !== 'CAMPURAN') {
+      setQCat(adminBankCatFilter);
     }
     setQText('');
     setQTopic(packageTitle || '');
@@ -1259,11 +1284,28 @@ export const AdminDashboardView: React.FC = () => {
     setEditingPackage(null);
     setPTitle('');
     setPSubtitle('');
-    setPType('LATIHAN_HARIAN');
-    setPCat('TIU');
-    setPTier('PREMIUM');
-    setPCount(15);
-    setPDuration(15);
+    if (adminBankMenuFilter === 'TRYOUT_LENGKAP') {
+      setPType('TRYOUT_SKD');
+      setPCat('CAMPURAN');
+      setPCount(110);
+      setPDuration(100);
+    } else if (adminBankMenuFilter === 'TRYOUT_KATEGORI') {
+      setPType('DRILL_KATEGORI');
+      setPCat(adminBankCatFilter !== 'ALL' && adminBankCatFilter !== 'CAMPURAN' ? adminBankCatFilter : 'TWK');
+      setPCount(30);
+      setPDuration(25);
+    } else if (adminBankMenuFilter === 'TRYOUT_BARENG') {
+      setPType('TRYOUT_AKBAR');
+      setPCat('CAMPURAN');
+      setPCount(110);
+      setPDuration(100);
+    } else {
+      setPType('LATIHAN_HARIAN');
+      setPCat(adminBankCatFilter !== 'ALL' && adminBankCatFilter !== 'CAMPURAN' ? adminBankCatFilter : 'TIU');
+      setPCount(15);
+      setPDuration(15);
+    }
+    setPTier(adminBankTierFilter !== 'ALL' ? adminBankTierFilter : 'PREMIUM');
     setPDesc('');
     setIsPackageModalOpen(true);
   };
@@ -3495,149 +3537,835 @@ TINGKAT KESULITAN: Sedang
         );
       })()}
 
-      {/* ================= 3. BANK SOAL TERPILAH PER KOTAK / PAKET ================= */}
-      {currentAdminTab === 'admin-questions' && (
-        <div className="space-y-6">
-          {/* Header & Controls */}
-          <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div>
-                <h2 className="text-base font-extrabold text-slate-900">
-                  Bank Soal &amp; Pengelolaan Kotak Paket ({practicePackages.length} Kotak · {questions.length} Butir Soal)
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Kelompokkan soal ke dalam kotak paket sesuai tampilan peserta (misal: &quot;TIU 1 : Penalaran Logis&quot;), atau kelola butir soal per kategori TWK, TIU, TKP.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => setActiveView('admin-import')}
-                  className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer"
-                >
-                  Import Massal
-                </button>
-                <button
-                  onClick={handleOpenNewPackage}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
-                >
-                  <FolderPlus className="w-4 h-4" />
-                  <span>+ Buat Kotak Soal Baru</span>
-                </button>
-                <button
-                  onClick={() => handleOpenNewQuestion()}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Tambah Soal Baru</span>
-                </button>
-              </div>
-            </div>
+      {/* ================= 3. BANK SOAL TERPILAH PER MENU PESERTA & KOTAK / PAKET ================= */}
+      {currentAdminTab === 'admin-questions' && (() => {
+        const matchesAdminBankMenu = (
+          pkg: PracticePackage,
+          menu: typeof adminBankMenuFilter
+        ): boolean => {
+          if (menu === 'ALL') return true;
+          if (menu === 'TRYOUT_LENGKAP') {
+            return pkg.package_type === 'TRYOUT_SKD' || pkg.package_type === 'TRYOUT_AKBAR';
+          }
+          if (menu === 'LATIHAN_HARIAN') {
+            return pkg.package_type === 'LATIHAN_HARIAN' || pkg.package_type === 'DRILL_KATEGORI';
+          }
+          if (menu === 'TRYOUT_KATEGORI') {
+            return pkg.package_type === 'DRILL_KATEGORI';
+          }
+          if (menu === 'TRYOUT_BARENG') {
+            return pkg.package_type === 'TRYOUT_AKBAR';
+          }
+          return true;
+        };
 
-            {/* View Mode Toggle Tabs */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs">
-                <button
-                  onClick={() => setQuestionViewMode('PACKAGES')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-                    questionViewMode === 'PACKAGES'
-                      ? 'bg-white text-blue-700 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>Tampilan Kotak / Paket Soal ({practicePackages.length})</span>
-                </button>
-                <button
-                  onClick={() => setQuestionViewMode('ALL_QUESTIONS')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-                    questionViewMode === 'ALL_QUESTIONS'
-                      ? 'bg-white text-blue-700 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Database className="w-3.5 h-3.5" />
-                  <span>Daftar Semua Butir Soal ({questions.length})</span>
-                </button>
-              </div>
+        const handleSelectBankMenu = (menu: typeof adminBankMenuFilter) => {
+          setAdminBankMenuFilter(menu);
+          setSelectedPackageFilter('ALL');
+          setAdminBankCatFilter('ALL');
+          setAdminBankTierFilter('ALL');
+          setSelectedBankQuestionIds([]);
+        };
 
-              {questionViewMode === 'ALL_QUESTIONS' && (
-                <div className="flex items-center gap-2 text-xs">
-                  <Filter className="w-3.5 h-3.5 text-slate-400" />
-                  <select
-                    value={selectedPackageFilter}
-                    onChange={e => setSelectedPackageFilter(e.target.value)}
-                    className="p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
+        const menuMeta: Array<{
+          key: typeof adminBankMenuFilter;
+          label: string;
+          subLabel: string;
+          boxCount: number;
+          badgeText: string;
+          icon: React.ReactNode;
+        }> = [
+          {
+            key: 'ALL',
+            label: 'Semua Menu',
+            subLabel: 'Seluruh kotak & bank soal',
+            boxCount: practicePackages.length,
+            badgeText: `${practicePackages.length} Kotak · ${questions.length} Soal`,
+            icon: <Layers className="w-4 h-4 shrink-0" />
+          },
+          {
+            key: 'TRYOUT_LENGKAP',
+            label: 'Tryout Lengkap',
+            subLabel: 'Tab 1 Peserta (SKD & Akbar)',
+            boxCount: practicePackages.filter(p => matchesAdminBankMenu(p, 'TRYOUT_LENGKAP')).length,
+            badgeText: `${practicePackages.filter(p => matchesAdminBankMenu(p, 'TRYOUT_LENGKAP')).length} Kotak`,
+            icon: <Award className="w-4 h-4 shrink-0" />
+          },
+          {
+            key: 'LATIHAN_HARIAN',
+            label: 'Latihan Harian & Drill',
+            subLabel: 'Tab 2 Peserta (TIU, TWK, TKP)',
+            boxCount: practicePackages.filter(p => matchesAdminBankMenu(p, 'LATIHAN_HARIAN')).length,
+            badgeText: `${practicePackages.filter(p => matchesAdminBankMenu(p, 'LATIHAN_HARIAN')).length} Kotak`,
+            icon: <Clock className="w-4 h-4 shrink-0" />
+          },
+          {
+            key: 'TRYOUT_KATEGORI',
+            label: 'Tryout Kategori & Spesialis',
+            subLabel: 'Tab 3 Peserta (TWK/TIU/TKP)',
+            boxCount: practicePackages.filter(p => matchesAdminBankMenu(p, 'TRYOUT_KATEGORI')).length,
+            badgeText: `${practicePackages.filter(p => matchesAdminBankMenu(p, 'TRYOUT_KATEGORI')).length} Kotak · ${questions.length} Bank`,
+            icon: <Sparkles className="w-4 h-4 shrink-0" />
+          },
+          {
+            key: 'TRYOUT_BARENG',
+            label: 'Tryout Bareng',
+            subLabel: 'Tab 4 Peserta (Akbar & Sesi)',
+            boxCount: practicePackages.filter(p => matchesAdminBankMenu(p, 'TRYOUT_BARENG')).length,
+            badgeText: `${practicePackages.filter(p => matchesAdminBankMenu(p, 'TRYOUT_BARENG')).length} Kotak · ${groupSessions.length} Sesi`,
+            icon: <Users className="w-4 h-4 shrink-0" />
+          }
+        ];
+
+        const sortPracticePackages = (list: PracticePackage[]): PracticePackage[] => {
+          const arr = [...list];
+          if (adminBankSortBy === 'NAME_ASC') {
+            return arr.sort((a, b) =>
+              a.title.localeCompare(b.title, 'id', { numeric: true, sensitivity: 'base' })
+            );
+          }
+          if (adminBankSortBy === 'NAME_DESC') {
+            return arr.sort((a, b) =>
+              b.title.localeCompare(a.title, 'id', { numeric: true, sensitivity: 'base' })
+            );
+          }
+          if (adminBankSortBy === 'NEWEST') {
+            return arr.sort(
+              (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+            );
+          }
+          if (adminBankSortBy === 'OLDEST') {
+            return arr.sort(
+              (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+            );
+          }
+          if (adminBankSortBy === 'MOST_QUESTIONS') {
+            return arr.sort((a, b) => {
+              const ca = questions.filter(q => isQuestionInPackage(q, a)).length;
+              const cb = questions.filter(q => isQuestionInPackage(q, b)).length;
+              return cb !== ca ? cb - ca : b.question_count - a.question_count;
+            });
+          }
+          if (adminBankSortBy === 'FEWEST_QUESTIONS') {
+            return arr.sort((a, b) => {
+              const ca = questions.filter(q => isQuestionInPackage(q, a)).length;
+              const cb = questions.filter(q => isQuestionInPackage(q, b)).length;
+              return ca !== cb ? ca - cb : a.question_count - b.question_count;
+            });
+          }
+          if (adminBankSortBy === 'PUBLISHED_FIRST') {
+            return arr.sort((a, b) => (b.is_active !== false ? 1 : 0) - (a.is_active !== false ? 1 : 0));
+          }
+          if (adminBankSortBy === 'UNPUBLISHED_FIRST') {
+            return arr.sort((a, b) => (a.is_active !== false ? 1 : 0) - (b.is_active !== false ? 1 : 0));
+          }
+          return arr;
+        };
+
+        const sortQuestionsList = (list: Question[]): Question[] => {
+          const arr = [...list];
+          if (adminBankSortBy === 'NAME_ASC') {
+            return arr.sort((a, b) =>
+              a.question_text.localeCompare(b.question_text, 'id', {
+                numeric: true,
+                sensitivity: 'base'
+              })
+            );
+          }
+          if (adminBankSortBy === 'NAME_DESC') {
+            return arr.sort((a, b) =>
+              b.question_text.localeCompare(a.question_text, 'id', {
+                numeric: true,
+                sensitivity: 'base'
+              })
+            );
+          }
+          if (adminBankSortBy === 'NEWEST') {
+            return arr.sort(
+              (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+            );
+          }
+          if (adminBankSortBy === 'OLDEST') {
+            return arr.sort(
+              (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+            );
+          }
+          if (adminBankSortBy === 'PUBLISHED_FIRST') {
+            return arr.sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0));
+          }
+          if (adminBankSortBy === 'UNPUBLISHED_FIRST') {
+            return arr.sort((a, b) => (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0));
+          }
+          return arr;
+        };
+
+        const packagesInMenu = sortPracticePackages(
+          practicePackages.filter(pkg => matchesAdminBankMenu(pkg, adminBankMenuFilter))
+        );
+
+        const packagesMatchingSubFilters = packagesInMenu.filter(pkg => {
+          if (adminBankCatFilter !== 'ALL' && pkg.category !== adminBankCatFilter) return false;
+          if (adminBankTierFilter !== 'ALL' && pkg.access_tier !== adminBankTierFilter) return false;
+          if (adminBankSearch.trim()) {
+            const q = adminBankSearch.toLowerCase();
+            const matchPkg =
+              pkg.title.toLowerCase().includes(q) ||
+              (pkg.subtitle && pkg.subtitle.toLowerCase().includes(q)) ||
+              pkg.category.toLowerCase().includes(q);
+            if (!matchPkg) return false;
+          }
+          return true;
+        });
+
+        const visiblePackageCards =
+          selectedPackageFilter === 'ALL'
+            ? packagesMatchingSubFilters
+            : packagesInMenu.filter(pkg => pkg.id === selectedPackageFilter);
+
+        const selectedFocusedPkg =
+          selectedPackageFilter !== 'ALL'
+            ? practicePackages.find(p => p.id === selectedPackageFilter) || null
+            : null;
+
+        const availableCategoriesInMenu: Array<'ALL' | QuestionCategory | 'CAMPURAN'> = ['ALL'];
+        (['TWK', 'TIU', 'TKP', 'CAMPURAN'] as const).forEach(cat => {
+          if (
+            adminBankMenuFilter === 'ALL' ||
+            adminBankMenuFilter === 'TRYOUT_KATEGORI' ||
+            packagesInMenu.some(p => p.category === cat)
+          ) {
+            availableCategoriesInMenu.push(cat);
+          }
+        });
+
+        const activeMenuObj = menuMeta.find(m => m.key === adminBankMenuFilter) || menuMeta[0];
+
+        const filteredTableQuestions = sortQuestionsList(
+          questions.filter(q => {
+            if (selectedFocusedPkg) {
+              if (!isQuestionInPackage(q, selectedFocusedPkg)) return false;
+            } else if (adminBankMenuFilter === 'TRYOUT_LENGKAP' || adminBankMenuFilter === 'LATIHAN_HARIAN') {
+              // Tampilkan soal yang masuk ke salah satu kotak di menu terpilih
+              const belongsToMenuPkg = packagesMatchingSubFilters.some(pkg => isQuestionInPackage(q, pkg));
+              if (!belongsToMenuPkg) return false;
+            }
+
+            if (adminBankCatFilter !== 'ALL' && adminBankCatFilter !== 'CAMPURAN') {
+              if (q.category !== adminBankCatFilter) return false;
+            }
+
+            if (adminBankSearch.trim()) {
+              const s = adminBankSearch.toLowerCase();
+              const matchQ =
+                q.question_text.toLowerCase().includes(s) ||
+                q.topic.toLowerCase().includes(s) ||
+                (q.package_title && q.package_title.toLowerCase().includes(s));
+              if (!matchQ) return false;
+            }
+            return true;
+          })
+        );
+
+        return (
+          <div className="space-y-6">
+            {/* Header & Controls */}
+            <div className="p-5 sm:p-6 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                  <h2 className="text-base font-extrabold text-slate-900">
+                    Bank Soal &amp; Pengelolaan Kotak Paket ({practicePackages.length} Kotak · {questions.length} Butir Soal)
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Pilih menu sesuai tampilan peserta terlebih dahulu, lalu filter kotak-kotak soal di dalamnya untuk menambah atau mengelola soal dengan cepat.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleOpenImportForPackage(selectedFocusedPkg || undefined)}
+                    className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer"
                   >
-                    <option value="ALL">Semua Kotak &amp; Soal Umum</option>
-                    {practicePackages.map(pkg => (
-                      <option key={pkg.id} value={pkg.id}>
-                        {pkg.title} ({pkg.category})
+                    Import Massal
+                  </button>
+                  <button
+                    onClick={handleOpenNewPackage}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+                  >
+                    <FolderPlus className="w-4 h-4" />
+                    <span>+ Buat Kotak Soal Baru</span>
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleOpenNewQuestion(
+                        selectedFocusedPkg?.id,
+                        selectedFocusedPkg?.title,
+                        'NEW'
+                      )
+                    }
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>
+                      {selectedFocusedPkg ? '+ Tambah Soal ke Kotak Ini' : '+ Tambah Soal Baru'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* TAHAP 1: KOTAK FILTER BERDASARKAN MENU PESERTA (Mirrors TryoutHubView Tabs) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Filter className="w-3.5 h-3.5 text-blue-600" />
+                    1. Filter Menu Peserta
+                  </span>
+                  {adminBankMenuFilter !== 'ALL' && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectBankMenu('ALL')}
+                      className="text-[11px] font-bold text-blue-700 hover:underline cursor-pointer"
+                    >
+                      Lihat Semua Menu
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                  {menuMeta.map(menu => {
+                    const isActive = adminBankMenuFilter === menu.key;
+                    return (
+                      <button
+                        key={menu.key}
+                        type="button"
+                        onClick={() => handleSelectBankMenu(menu.key)}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                          isActive
+                            ? 'bg-blue-700 text-white border-blue-700 shadow-sm ring-2 ring-blue-200'
+                            : 'bg-slate-50/80 hover:bg-white text-slate-800 border-slate-200 hover:border-blue-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1.5 font-extrabold text-xs leading-tight">
+                            <span className={isActive ? 'text-amber-300' : 'text-blue-600'}>
+                              {menu.icon}
+                            </span>
+                            <span>{menu.label}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <p
+                            className={`text-[10px] leading-tight line-clamp-1 ${
+                              isActive ? 'text-blue-100' : 'text-slate-500'
+                            }`}
+                          >
+                            {menu.subLabel}
+                          </p>
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                              isActive
+                                ? 'bg-white/20 text-white'
+                                : 'bg-white border border-slate-200 text-slate-700'
+                            }`}
+                          >
+                            {menu.badgeText}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* TAHAP 2: SUB-FILTER KOTAK-KOTAK SOAL, KATEGORI, TIER & PENCARIAN DI MENU TERPILIH */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 space-y-3">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 mr-1">
+                      2. Filter Kotak Soal ({activeMenuObj.label}):
+                    </span>
+
+                    {/* Category Filter Pills */}
+                    {availableCategoriesInMenu.map(cat => {
+                      const isCatActive = adminBankCatFilter === cat;
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setAdminBankCatFilter(cat);
+                            setSelectedPackageFilter('ALL');
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                            isCatActive
+                              ? 'bg-slate-900 text-white shadow-2xs'
+                              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {cat === 'ALL' ? 'Semua Kategori' : cat}
+                        </button>
+                      );
+                    })}
+
+                    {/* Tier Filter Select */}
+                    <select
+                      value={adminBankTierFilter}
+                      onChange={e => {
+                        setAdminBankTierFilter(e.target.value as 'ALL' | PackageAccessTier);
+                        setSelectedPackageFilter('ALL');
+                      }}
+                      className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 cursor-pointer"
+                    >
+                      <option value="ALL">Semua Tier</option>
+                      <option value="GRATIS">GRATIS</option>
+                      <option value="PREMIUM">PREMIUM</option>
+                      <option value="PLATINUM">PLATINUM</option>
+                    </select>
+
+                    {/* Sort Order Select (A-Z, Z-A, Terbaru, Terlama, Jumlah Soal, Status Terbit) */}
+                    <div className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                      <ArrowUpDown className="w-3 h-3 text-blue-600 shrink-0" />
+                      <select
+                        value={adminBankSortBy}
+                        onChange={e =>
+                          setAdminBankSortBy(e.target.value as typeof adminBankSortBy)
+                        }
+                        className="bg-transparent text-[11px] font-bold text-slate-800 focus:outline-none cursor-pointer"
+                        title="Urutkan Kotak Soal & Butir Soal"
+                      >
+                        <option value="DEFAULT">Urutan: Bawaan</option>
+                        <option value="NAME_ASC">Urutan: A – Z</option>
+                        <option value="NAME_DESC">Urutan: Z – A</option>
+                        <option value="NEWEST">Terbaru Ditambahkan</option>
+                        <option value="OLDEST">Terlama Ditambahkan</option>
+                        <option value="MOST_QUESTIONS">Soal Terbanyak</option>
+                        <option value="FEWEST_QUESTIONS">Soal Tersedikit</option>
+                        <option value="PUBLISHED_FIRST">Status: Terbit Dulu</option>
+                        <option value="UNPUBLISHED_FIRST">Status: Nonterbit Dulu</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Quick Search Input */}
+                  <div className="relative w-full lg:w-72">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={adminBankSearch}
+                      onChange={e => setAdminBankSearch(e.target.value)}
+                      placeholder="Cari nama kotak atau teks soal..."
+                      className="w-full pl-8 pr-8 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                    />
+                    {adminBankSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminBankSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Precision Symmetrical Kotak-Kotak Soal Selector (Try Out Top, Latihan TWK Kiri | TIU Tengah | TKP Kanan) */}
+                {(() => {
+                  const renderBoxFilterButton = (pkg: PracticePackage) => {
+                    const countInPkg = questions.filter(q => isQuestionInPackage(q, pkg)).length;
+                    const isBoxSelected = selectedPackageFilter === pkg.id;
+                    const isUnpublished = pkg.is_active === false;
+                    return (
+                      <button
+                        key={pkg.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPackageFilter(isBoxSelected ? 'ALL' : pkg.id);
+                          setSelectedBankQuestionIds([]);
+                        }}
+                        className={`w-full px-2.5 py-2 rounded-lg text-[11px] font-bold border transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                          isBoxSelected
+                            ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs ring-2 ring-indigo-200'
+                            : isUnpublished
+                            ? 'bg-amber-50/70 text-slate-600 border-dashed border-amber-300 hover:border-amber-500'
+                            : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-blue-50/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-mono uppercase shrink-0 ${
+                              isBoxSelected
+                                ? 'bg-white/20 text-white'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {pkg.category === 'CAMPURAN' ? 'SKD' : pkg.category}
+                          </span>
+                          <span className="truncate text-left">{pkg.title}</span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isUnpublished && (
+                            <span
+                              className={`px-1 py-0.5 rounded text-[9px] font-extrabold ${
+                                isBoxSelected
+                                  ? 'bg-white/20 text-amber-200'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              OFF
+                            </span>
+                          )}
+                          <span
+                            className={`min-w-[24px] text-center px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                              isBoxSelected
+                                ? 'bg-amber-300 text-slate-950'
+                                : countInPkg > 0
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {countInPkg}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  };
+
+                  const filterTryoutBoxes = packagesMatchingSubFilters.filter(
+                    p => p.package_type === 'TRYOUT_SKD' || p.package_type === 'TRYOUT_AKBAR'
+                  );
+                  const filterLatihanBoxes = packagesMatchingSubFilters.filter(
+                    p => p.package_type === 'LATIHAN_HARIAN' || p.package_type === 'DRILL_KATEGORI'
+                  );
+                  const filterTwkBoxes = filterLatihanBoxes.filter(p => p.category === 'TWK');
+                  const filterTiuBoxes = filterLatihanBoxes.filter(p => p.category === 'TIU');
+                  const filterTkpBoxes = filterLatihanBoxes.filter(p => p.category === 'TKP');
+                  const hasSplitLatihanCols =
+                    adminBankCatFilter === 'ALL' &&
+                    (filterTwkBoxes.length > 0 || filterTiuBoxes.length > 0 || filterTkpBoxes.length > 0) &&
+                    [filterTwkBoxes.length, filterTiuBoxes.length, filterTkpBoxes.length].filter(n => n > 0).length > 1;
+
+                  return (
+                    <div className="space-y-3 pt-2 border-t border-slate-200/80">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] text-slate-500">
+                          Klik salah satu <strong>Kotak Soal</strong> di bawah untuk fokus mengelola atau menerbitkan/menonaktifkan soalnya:
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPackageFilter('ALL');
+                              setSelectedBankQuestionIds([]);
+                            }}
+                            className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                              selectedPackageFilter === 'ALL'
+                                ? 'bg-blue-700 text-white border-blue-700 shadow-2xs'
+                                : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400'
+                            }`}
+                          >
+                            Semua Kotak ({packagesMatchingSubFilters.length})
+                          </button>
+                        </div>
+                      </div>
+
+                      {packagesMatchingSubFilters.length === 0 ? (
+                        <div className="p-3 bg-white rounded-lg border border-dashed border-slate-300 text-xs text-slate-500 flex flex-wrap items-center justify-between gap-2">
+                          <span>Tidak ada kotak paket yang cocok dengan filter menu/kategori/pencarian ini.</span>
+                          <button
+                            type="button"
+                            onClick={handleOpenNewPackage}
+                            className="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                          >
+                            + Buat Kotak Baru di Menu Ini
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* AREA ATAS: TRY OUT SKD & AKBAR (Grid 3 Kolom Presisi) */}
+                          {filterTryoutBoxes.length > 0 && (
+                            <div className="p-3 rounded-xl bg-white border border-blue-200/80 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-800 flex items-center gap-1.5">
+                                  <Award className="w-3.5 h-3.5 text-blue-600" />
+                                  Area Try Out (SKD &amp; Akbar) · {filterTryoutBoxes.length} Kotak
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                {filterTryoutBoxes.map(renderBoxFilterButton)}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* AREA BAWAH: LATIHAN TWK (Kiri) · TIU (Tengah) · TKP (Kanan) */}
+                          {filterLatihanBoxes.length > 0 && (
+                            hasSplitLatihanCols ? (
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
+                                {/* KOLOM KIRI: TWK */}
+                                <div className="p-3 rounded-xl bg-white border border-blue-200/80 flex flex-col gap-2">
+                                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700">
+                                      Kiri · Latihan TWK
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono font-bold text-[10px]">
+                                      {filterTwkBoxes.length} Kotak
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                                    {filterTwkBoxes.length > 0 ? (
+                                      filterTwkBoxes.map(renderBoxFilterButton)
+                                    ) : (
+                                      <p className="text-[11px] text-slate-400 italic py-2 text-center">
+                                        Belum ada kotak TWK
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* KOLOM TENGAH: TIU */}
+                                <div className="p-3 rounded-xl bg-white border border-sky-200/80 flex flex-col gap-2">
+                                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-sky-700">
+                                      Tengah · Latihan TIU
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 font-mono font-bold text-[10px]">
+                                      {filterTiuBoxes.length} Kotak
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                                    {filterTiuBoxes.length > 0 ? (
+                                      filterTiuBoxes.map(renderBoxFilterButton)
+                                    ) : (
+                                      <p className="text-[11px] text-slate-400 italic py-2 text-center">
+                                        Belum ada kotak TIU
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* KOLOM KANAN: TKP */}
+                                <div className="p-3 rounded-xl bg-white border border-emerald-200/80 flex flex-col gap-2">
+                                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">
+                                      Kanan · Latihan TKP
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-mono font-bold text-[10px]">
+                                      {filterTkpBoxes.length} Kotak
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                                    {filterTkpBoxes.length > 0 ? (
+                                      filterTkpBoxes.map(renderBoxFilterButton)
+                                    ) : (
+                                      <p className="text-[11px] text-slate-400 italic py-2 text-center">
+                                        Belum ada kotak TKP
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700">
+                                    Area Latihan &amp; Drill · {filterLatihanBoxes.length} Kotak
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                  {filterLatihanBoxes.map(renderBoxFilterButton)}
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Contextual Helper Info for Tab 3 (Tryout Kategori) & Tab 4 (Tryout Bareng) */}
+                {adminBankMenuFilter === 'TRYOUT_KATEGORI' && (
+                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <strong>Info Menu Tryout Kategori &amp; Spesialis:</strong> Selain kotak Drill Kategori di atas, item Spesialis TWK (30), TIU (35), TKP (45), &amp; SKD pada halaman peserta mengambil soal langsung dari Bank Soal berdasarkan kategorinya.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setQuestionViewMode('ALL_QUESTIONS')}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold shrink-0 cursor-pointer"
+                    >
+                      Kelola Butir Soal per Kategori &rarr;
+                    </button>
+                  </div>
+                )}
+
+                {adminBankMenuFilter === 'TRYOUT_BARENG' && (
+                  <div className="p-3 rounded-lg bg-purple-50 border border-purple-200 text-[11px] text-purple-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <strong>Jadwal Sesi Tryout Bareng Aktif ({groupSessions.length} sesi):</strong>{' '}
+                      {groupSessions.map(s => s.title).join(' · ') || 'Belum ada jadwal sesi.'}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('admin-together-sessions')}
+                      className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-lg font-bold shrink-0 cursor-pointer"
+                    >
+                      Kelola Jadwal di 9. Tryout Bersama &rarr;
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* View Mode Toggle Tabs */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs">
+                  <button
+                    onClick={() => setQuestionViewMode('PACKAGES')}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
+                      questionViewMode === 'PACKAGES'
+                        ? 'bg-white text-blue-700 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Tampilan Kotak / Paket Soal ({visiblePackageCards.length})</span>
+                  </button>
+                  <button
+                    onClick={() => setQuestionViewMode('ALL_QUESTIONS')}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
+                      questionViewMode === 'ALL_QUESTIONS'
+                        ? 'bg-white text-blue-700 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Database className="w-3.5 h-3.5" />
+                    <span>Daftar Butir Soal ({filteredTableQuestions.length})</span>
+                  </button>
+                </div>
+
+                {questionViewMode === 'ALL_QUESTIONS' && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <Filter className="w-3.5 h-3.5 text-slate-400" />
+                    <select
+                      value={selectedPackageFilter}
+                      onChange={e => {
+                        setSelectedPackageFilter(e.target.value);
+                        setSelectedBankQuestionIds([]);
+                      }}
+                      className="p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 max-w-xs"
+                    >
+                      <option value="ALL">
+                        {adminBankMenuFilter === 'ALL'
+                          ? 'Semua Kotak & Soal Umum'
+                          : `Semua Kotak di ${activeMenuObj.label}`}
                       </option>
-                    ))}
-                  </select>
+                      {packagesInMenu.map(pkg => (
+                        <option key={pkg.id} value={pkg.id}>
+                          {pkg.title} ({pkg.category})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {bankAssignNotice && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="font-semibold">{bankAssignNotice}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBankAssignNotice('')}
+                    className="text-emerald-700 hover:text-emerald-900 font-bold px-1.5"
+                  >
+                    ×
+                  </button>
                 </div>
               )}
-            </div>
 
-            {bankAssignNotice && (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="font-semibold">{bankAssignNotice}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setBankAssignNotice('')}
-                  className="text-emerald-700 hover:text-emerald-900 font-bold px-1.5"
-                >
-                  ×
-                </button>
-              </div>
-            )}
+              {/* MODE 1: PACKAGES / KOTAK SOAL (Symmetric Precision Grid + Terbitkan/Nonterbitkan) */}
+              {questionViewMode === 'PACKAGES' && (() => {
+                const togglePackagePublish = (pkg: PracticePackage) => {
+                  const nextPublished = pkg.is_active === false;
+                  updatePracticePackage({
+                    ...pkg,
+                    is_active: nextPublished
+                  });
+                  setBankAssignNotice(
+                    nextPublished
+                      ? `Kotak "${pkg.title}" DITERBITKAN — sekarang tampil di halaman Peserta.`
+                      : `Kotak "${pkg.title}" DINONTERBITKAN — disembunyikan sementara dari halaman Peserta.`
+                  );
+                  setTimeout(() => setBankAssignNotice(''), 5000);
+                };
 
-            {/* MODE 1: PACKAGES / KOTAK SOAL (Mirrors Participant Cards) */}
-            {questionViewMode === 'PACKAGES' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-                {practicePackages.map(pkg => {
+                const renderPackageCard = (pkg: PracticePackage) => {
                   const assignedList = questions.filter(q => isQuestionInPackage(q, pkg));
                   const assignedCount = assignedList.length;
+                  const publishedQCount = assignedList.filter(q => q.is_active).length;
                   const twkCount = assignedList.filter(q => q.category === 'TWK').length;
                   const tiuCount = assignedList.filter(q => q.category === 'TIU').length;
                   const tkpCount = assignedList.filter(q => q.category === 'TKP').length;
+                  const isFocused = selectedPackageFilter === pkg.id;
+                  const isPublished = pkg.is_active !== false;
 
                   return (
                     <div
                       key={pkg.id}
-                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50/40 hover:bg-white hover:border-blue-400 hover:shadow-sm transition-all flex flex-col justify-between space-y-3"
+                      className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 h-full ${
+                        isFocused
+                          ? 'border-indigo-500 bg-indigo-50/30 shadow-sm ring-2 ring-indigo-100'
+                          : !isPublished
+                          ? 'border-dashed border-amber-300 bg-amber-50/30 hover:bg-amber-50/50'
+                          : 'border-slate-200 bg-slate-50/40 hover:bg-white hover:border-blue-400 hover:shadow-sm'
+                      }`}
                     >
                       <div className="space-y-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-blue-100 text-blue-800">
-                            {pkg.package_type === 'TRYOUT_SKD' || pkg.package_type === 'TRYOUT_AKBAR' ? 'TRY OUT' : 'LATIHAN'} · {pkg.category}
+                        {/* Top Badges Row — strictly single line, flush left & right */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-blue-100 text-blue-800 whitespace-nowrap shrink-0">
+                            {pkg.package_type === 'TRYOUT_SKD' || pkg.package_type === 'TRYOUT_AKBAR'
+                              ? 'TRY OUT'
+                              : pkg.package_type === 'DRILL_KATEGORI'
+                              ? 'DRILL'
+                              : 'LATIHAN'}{' '}
+                            · {pkg.category === 'CAMPURAN' ? 'SKD' : pkg.category}
                           </span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
-                            pkg.access_tier === 'PLATINUM'
-                              ? 'bg-purple-600 text-white'
-                              : pkg.access_tier === 'PREMIUM'
-                              ? 'bg-sky-500 text-white'
-                              : 'bg-emerald-600 text-white'
-                          }`}>
-                            {pkg.access_tier}
-                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase whitespace-nowrap ${
+                                isPublished
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {isPublished ? 'TERBIT' : 'NONTERBIT'}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase whitespace-nowrap ${
+                                pkg.access_tier === 'PLATINUM'
+                                  ? 'bg-purple-600 text-white'
+                                  : pkg.access_tier === 'PREMIUM'
+                                  ? 'bg-sky-500 text-white'
+                                  : 'bg-emerald-600 text-white'
+                              }`}
+                            >
+                              {pkg.access_tier}
+                            </span>
+                          </div>
                         </div>
 
-                        <div>
-                          <h3 className="font-extrabold text-sm text-slate-900 leading-snug">
+                        <div className="space-y-0.5">
+                          <h3 className="font-extrabold text-sm text-slate-900 leading-snug line-clamp-2 min-h-[40px]">
                             {pkg.title}
                           </h3>
-                          {pkg.subtitle && (
-                            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{pkg.subtitle}</p>
-                          )}
+                          <p className="text-[11px] text-slate-500 line-clamp-1 min-h-[16px]">
+                            {pkg.subtitle || 'Paket latihan & simulasi SKD CPNS'}
+                          </p>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] bg-white p-2 rounded-lg border border-slate-200">
+                        <div className="flex items-center justify-between text-[11px] bg-white px-2.5 py-2 rounded-lg border border-slate-200">
                           <span className="text-slate-500">Target / Waktu:</span>
-                          <span className="font-mono font-bold text-slate-800">
+                          <span className="font-mono font-bold text-slate-800 whitespace-nowrap">
                             {pkg.question_count} Soal · {pkg.duration_minutes} Menit
                           </span>
                         </div>
@@ -3645,72 +4373,129 @@ TINGKAT KESULITAN: Sedang
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-[11px]">
                             <span className="text-slate-500">Soal Terkait Langsung:</span>
-                            <span className="font-mono font-bold text-blue-700">
-                              {assignedCount} butir
+                            <span className="font-mono font-bold text-blue-700 whitespace-nowrap">
+                              {assignedCount} butir{assignedCount > 0 ? ` (${publishedQCount} terbit)` : ''}
                             </span>
                           </div>
                           {assignedCount > 0 && pkg.category === 'CAMPURAN' && (
                             <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-600">
-                              <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">TWK {twkCount}</span>
-                              <span className="px-1.5 py-0.5 bg-sky-50 text-sky-700 rounded">TIU {tiuCount}</span>
-                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded">TKP {tkpCount}</span>
+                              <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">
+                                TWK {twkCount}
+                              </span>
+                              <span className="px-1.5 py-0.5 bg-sky-50 text-sky-700 rounded">
+                                TIU {tiuCount}
+                              </span>
+                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded">
+                                TKP {tkpCount}
+                              </span>
                             </div>
                           )}
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-200 space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-1.5">
+                      {/* Precision Symmetrical 3-Row Action Grid (Equal Left/Right Alignment) */}
+                      <div className="pt-2.5 border-t border-slate-200 space-y-1.5">
+                        <div className="grid grid-cols-2 gap-1.5">
                           <button
+                            type="button"
                             onClick={() => handleOpenNewQuestion(pkg.id, pkg.title, 'NEW')}
-                            className="flex-1 py-1.5 px-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer"
+                            className="h-8 px-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 whitespace-nowrap cursor-pointer"
                             title="Tambah 1 Soal Manual ke Kotak Ini"
                           >
-                            <Plus className="w-3.5 h-3.5" />
+                            <Plus className="w-3.5 h-3.5 shrink-0" />
                             <span>+ Soal</span>
                           </button>
                           <button
-                            onClick={() => handleOpenNewQuestion(pkg.id, pkg.title, 'PICK_EXISTING')}
-                            className="flex-1 py-1.5 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer"
-                            title="Ambil soal yang sudah ada dari Daftar Semua Butir Soal (Latihan/Bank Soal) ke Kotak Ini"
+                            type="button"
+                            onClick={() =>
+                              handleOpenNewQuestion(pkg.id, pkg.title, 'PICK_EXISTING')
+                            }
+                            className="h-8 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 whitespace-nowrap cursor-pointer"
+                            title="Ambil soal yang sudah ada dari Bank Soal ke Kotak Ini"
                           >
-                            <ListPlus className="w-3.5 h-3.5" />
-                            <span>Ambil dari Bank</span>
+                            <ListPlus className="w-3.5 h-3.5 shrink-0" />
+                            <span>Ambil Bank</span>
                           </button>
                         </div>
-                        <div className="flex flex-wrap items-center gap-1.5">
+
+                        <div className="grid grid-cols-2 gap-1.5">
                           <button
+                            type="button"
                             onClick={() => handleOpenImportForPackage(pkg)}
-                            className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer"
+                            className="h-8 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 whitespace-nowrap cursor-pointer"
                             title="Import Banyak Soal Sekaligus ke Kotak Ini"
                           >
-                            <Upload className="w-3.5 h-3.5" />
+                            <Upload className="w-3.5 h-3.5 shrink-0" />
                             <span>Import Soal</span>
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               setSelectedPackageFilter(pkg.id);
                               setSelectedBankQuestionIds([]);
                               setQuestionViewMode('ALL_QUESTIONS');
                             }}
-                            className="py-1.5 px-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-semibold cursor-pointer"
+                            className="h-8 px-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 whitespace-nowrap cursor-pointer"
+                            title="Lihat & Kelola Daftar Soal di Kotak Ini"
                           >
-                            Lihat
+                            <Database className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+                            <span>Lihat ({assignedCount})</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => togglePackagePublish(pkg)}
+                            className={`flex-1 h-8 px-2.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap border transition-colors cursor-pointer ${
+                              isPublished
+                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                            }`}
+                            title={
+                              isPublished
+                                ? 'Nonterbitkan kotak soal ini agar sementara tidak tampil di Peserta'
+                                : 'Terbitkan kotak soal ini agar langsung tampil di Peserta'
+                            }
+                          >
+                            {isPublished ? (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5 shrink-0" />
+                                <span>Nonterbitkan</span>
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-3.5 h-3.5 shrink-0" />
+                                <span>Terbitkan</span>
+                              </>
+                            )}
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleOpenEditPackage(pkg)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 bg-white cursor-pointer"
+                            className="w-8 h-8 shrink-0 flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 bg-white cursor-pointer"
                             title="Edit Kotak Soal"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
-                              if (confirm(`Hapus kotak soal "${pkg.title}"?`)) {
-                                deletePracticePackage(pkg.id);
-                              }
+                              setDeleteConfirmDialog({
+                                title: 'Hapus Kotak Paket Soal?',
+                                message: `Kotak soal "${pkg.title}" akan dihapus permanen. Butir soal yang ada di Bank Soal tetap tersimpan aman.`,
+                                confirmLabel: 'Ya, Hapus Kotak',
+                                onConfirm: () => {
+                                  if (selectedPackageFilter === pkg.id) {
+                                    setSelectedPackageFilter('ALL');
+                                  }
+                                  deletePracticePackage(pkg.id);
+                                  setBankAssignNotice(`Kotak soal "${pkg.title}" berhasil dihapus.`);
+                                  setTimeout(() => setBankAssignNotice(''), 5000);
+                                }
+                              });
                             }}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg border border-slate-200 bg-white cursor-pointer"
+                            className="w-8 h-8 shrink-0 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg border border-slate-200 bg-white cursor-pointer"
                             title="Hapus Kotak Soal"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -3719,214 +4504,655 @@ TINGKAT KESULITAN: Sedang
                       </div>
                     </div>
                   );
-                })}
-              </div>
-            )}
+                };
 
-            {/* MODE 2: FLAT TABLE FILTERED BY KOTAK / JUDUL */}
-            {questionViewMode === 'ALL_QUESTIONS' && (() => {
-              const filteredTableQuestions = questions.filter(q => {
-                if (selectedPackageFilter === 'ALL') return true;
-                const pkg = practicePackages.find(p => p.id === selectedPackageFilter);
-                return pkg ? isQuestionInPackage(q, pkg) : q.package_id === selectedPackageFilter;
-              });
-              const allFilteredSelected =
-                filteredTableQuestions.length > 0 &&
-                filteredTableQuestions.every(q => selectedBankQuestionIds.includes(q.id));
+                const cardTryoutBoxes = visiblePackageCards.filter(
+                  p => p.package_type === 'TRYOUT_SKD' || p.package_type === 'TRYOUT_AKBAR'
+                );
+                const cardLatihanBoxes = visiblePackageCards.filter(
+                  p => p.package_type === 'LATIHAN_HARIAN' || p.package_type === 'DRILL_KATEGORI'
+                );
+                const cardTwkBoxes = cardLatihanBoxes.filter(p => p.category === 'TWK');
+                const cardTiuBoxes = cardLatihanBoxes.filter(p => p.category === 'TIU');
+                const cardTkpBoxes = cardLatihanBoxes.filter(p => p.category === 'TKP');
+                const shouldShowSplitSections =
+                  selectedPackageFilter === 'ALL' &&
+                  adminBankCatFilter === 'ALL' &&
+                  (adminBankMenuFilter === 'ALL' || adminBankMenuFilter === 'LATIHAN_HARIAN') &&
+                  cardLatihanBoxes.length > 0;
 
-              return (
-                <div className="space-y-3 pt-2">
-                  {/* Bulk Assign Bar (Salin/Masukkan Soal Latihan ke Full Tryout atau Kotak Lain) */}
-                  <div className="p-3 rounded-xl bg-indigo-50/80 border border-indigo-200 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs">
-                    <div className="flex items-center gap-2 text-indigo-950">
-                      <ListPlus className="w-4 h-4 text-indigo-600 shrink-0" />
-                      <span>
-                        {selectedBankQuestionIds.length > 0 ? (
-                          <>
-                            <strong>{selectedBankQuestionIds.length} butir soal</strong> dipilih — pilih kotak tujuan (misal Try Out Full) untuk memasukkan soal yang sama:
-                          </>
-                        ) : (
-                          'Centang soal di tabel bawah untuk memasukkannya ke kotak lain (misalnya memasukkan soal Try Out Latihan ke Try Out Full).'
+                return (
+                  <div className="space-y-6 pt-2">
+                    {visiblePackageCards.length === 0 ? (
+                      <div className="p-8 text-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 space-y-2.5">
+                        <Layers className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="text-xs sm:text-sm font-bold text-slate-700">
+                          Belum ada kotak paket soal yang cocok dengan filter saat ini.
+                        </p>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectBankMenu('ALL')}
+                            className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold cursor-pointer hover:bg-slate-100"
+                          >
+                            Reset Semua Filter
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleOpenNewPackage}
+                            className="px-3.5 py-1.5 bg-sky-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-sky-700"
+                          >
+                            + Buat Kotak Soal Baru
+                          </button>
+                        </div>
+                      </div>
+                    ) : shouldShowSplitSections ? (
+                      <div className="space-y-6">
+                        {/* AREA ATAS: KOTAK TRY OUT SKD & AKBAR */}
+                        {cardTryoutBoxes.length > 0 && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-blue-50 border border-blue-200">
+                              <div className="flex items-center gap-2">
+                                <Award className="w-4 h-4 text-blue-700" />
+                                <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-blue-950">
+                                  Area Atas · Paket Try Out SKD &amp; Akbar
+                                </h3>
+                              </div>
+                              <span className="px-2.5 py-0.5 rounded-full bg-blue-700 text-white text-[11px] font-mono font-bold">
+                                {cardTryoutBoxes.length} Kotak
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+                              {cardTryoutBoxes.map(renderPackageCard)}
+                            </div>
+                          </div>
                         )}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <select
-                        value={bulkTargetPkgId}
-                        onChange={e => setBulkTargetPkgId(e.target.value)}
-                        className="p-2 bg-white border border-indigo-300 rounded-lg text-xs font-semibold text-slate-800 max-w-xs"
-                      >
-                        <option value="">-- Pilih Kotak / Paket Tujuan --</option>
-                        {practicePackages.map(pkg => (
-                          <option key={pkg.id} value={pkg.id}>
-                            [{pkg.category}] {pkg.title}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={handleBulkAssignFromTable}
-                        disabled={selectedBankQuestionIds.length === 0 || !bulkTargetPkgId}
-                        className="px-3.5 py-2 bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold cursor-pointer"
-                      >
-                        Masukkan ke Kotak Ini
-                      </button>
-                      {selectedBankQuestionIds.length > 0 && (
+
+                        {/* AREA BAWAH: 3 KOLOM PRESISI LATIHAN (TWK Kiri | TIU Tengah | TKP Kanan) */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-100 border border-slate-300">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-slate-700" />
+                              <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-slate-900">
+                                Area Latihan Harian &amp; Drill · TWK (Kiri) · TIU (Tengah) · TKP (Kanan)
+                              </h3>
+                            </div>
+                            <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-white text-[11px] font-mono font-bold">
+                              {cardLatihanBoxes.length} Kotak
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+                            {/* KOLOM KIRI: TWK */}
+                            <div className="space-y-3 p-3 rounded-2xl bg-blue-50/40 border border-blue-200/80">
+                              <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-blue-700 text-white">
+                                <span className="text-xs font-extrabold uppercase tracking-wider">
+                                  TWK · Wawasan Kebangsaan
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-mono font-bold">
+                                  {cardTwkBoxes.length} Kotak
+                                </span>
+                              </div>
+                              <div className="space-y-3">
+                                {cardTwkBoxes.length > 0 ? (
+                                  cardTwkBoxes.map(renderPackageCard)
+                                ) : (
+                                  <div className="p-6 text-center text-xs text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
+                                    Tidak ada kotak latihan TWK.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* KOLOM TENGAH: TIU */}
+                            <div className="space-y-3 p-3 rounded-2xl bg-sky-50/40 border border-sky-200/80">
+                              <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-sky-600 text-white">
+                                <span className="text-xs font-extrabold uppercase tracking-wider">
+                                  TIU · Inteligensia Umum
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-mono font-bold">
+                                  {cardTiuBoxes.length} Kotak
+                                </span>
+                              </div>
+                              <div className="space-y-3">
+                                {cardTiuBoxes.length > 0 ? (
+                                  cardTiuBoxes.map(renderPackageCard)
+                                ) : (
+                                  <div className="p-6 text-center text-xs text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
+                                    Tidak ada kotak latihan TIU.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* KOLOM KANAN: TKP */}
+                            <div className="space-y-3 p-3 rounded-2xl bg-emerald-50/40 border border-emerald-200/80">
+                              <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-emerald-700 text-white">
+                                <span className="text-xs font-extrabold uppercase tracking-wider">
+                                  TKP · Karakteristik Pribadi
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-mono font-bold">
+                                  {cardTkpBoxes.length} Kotak
+                                </span>
+                              </div>
+                              <div className="space-y-3">
+                                {cardTkpBoxes.length > 0 ? (
+                                  cardTkpBoxes.map(renderPackageCard)
+                                ) : (
+                                  <div className="p-6 text-center text-xs text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
+                                    Tidak ada kotak latihan TKP.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+                        {visiblePackageCards.map(renderPackageCard)}
+                      </div>
+                    )}
+
+                    {/* Focused Inline Question List when a specific Kotak Soal chip is selected */}
+                    {selectedFocusedPkg && (() => {
+                      const focusedQuestions = sortQuestionsList(
+                        questions.filter(q => isQuestionInPackage(q, selectedFocusedPkg))
+                      );
+                      const isFocusedPkgPublished = selectedFocusedPkg.is_active !== false;
+                      const bulkToggleFocusedQuestions = (publish: boolean) => {
+                        focusedQuestions.forEach(q => {
+                          if (q.is_active !== publish) {
+                            updateQuestion({ ...q, is_active: publish });
+                          }
+                        });
+                        setBankAssignNotice(
+                          publish
+                            ? `Semua ${focusedQuestions.length} butir soal di "${selectedFocusedPkg.title}" berhasil DITERBITKAN.`
+                            : `Semua ${focusedQuestions.length} butir soal di "${selectedFocusedPkg.title}" DINONTERBITKAN.`
+                        );
+                        setTimeout(() => setBankAssignNotice(''), 5000);
+                      };
+
+                      return (
+                        <div className="p-4 rounded-2xl border border-indigo-200 bg-indigo-50/40 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-200/80 pb-3">
+                            <div>
+                              <h3 className="text-sm font-extrabold text-indigo-950">
+                                Daftar Butir Soal di Kotak: {selectedFocusedPkg.title} ({focusedQuestions.length} butir)
+                              </h3>
+                              <p className="text-[11px] text-indigo-800">
+                                Kelola, terbitkan, atau nonterbitkan kotak soal &amp; setiap butir soal di dalamnya secara langsung.
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => togglePackagePublish(selectedFocusedPkg)}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer border ${
+                                  isFocusedPkgPublished
+                                    ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                                }`}
+                              >
+                                {isFocusedPkgPublished ? (
+                                  <>
+                                    <EyeOff className="w-3.5 h-3.5" />
+                                    <span>Nonterbitkan Kotak</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Terbitkan Kotak</span>
+                                  </>
+                                )}
+                              </button>
+                              {focusedQuestions.length > 0 && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => bulkToggleFocusedQuestions(true)}
+                                    className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold cursor-pointer"
+                                  >
+                                    Terbitkan Semua Soal
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => bulkToggleFocusedQuestions(false)}
+                                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-bold cursor-pointer"
+                                  >
+                                    Nonterbitkan Semua Soal
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleOpenNewQuestion(
+                                    selectedFocusedPkg.id,
+                                    selectedFocusedPkg.title,
+                                    'NEW'
+                                  )
+                                }
+                                className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>+ Soal</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleOpenNewQuestion(
+                                    selectedFocusedPkg.id,
+                                    selectedFocusedPkg.title,
+                                    'PICK_EXISTING'
+                                  )
+                                }
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                              >
+                                <ListPlus className="w-3.5 h-3.5" />
+                                <span>Ambil Bank</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPackageFilter('ALL');
+                                  setSelectedBankQuestionIds([]);
+                                }}
+                                className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-semibold cursor-pointer"
+                              >
+                                Tampilkan Semua Kotak
+                              </button>
+                            </div>
+                          </div>
+
+                          {focusedQuestions.length === 0 ? (
+                            <div className="p-4 bg-white rounded-xl border border-dashed border-indigo-300 text-xs text-slate-600 text-center space-y-1">
+                              <p className="font-bold text-slate-800">
+                                Belum ada soal yang dikaitkan secara khusus ke kotak &quot;{selectedFocusedPkg.title}&quot;.
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                Saat peserta mengerjakan, sistem sementara mengambil cadangan dari Bank Soal kategori{' '}
+                                <strong>{selectedFocusedPkg.category}</strong>. Klik <strong>+ Soal</strong>,{' '}
+                                <strong>Ambil Bank</strong>, atau <strong>Import Soal</strong> untuk mengisi kotak ini.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto bg-white rounded-xl border border-slate-200">
+                              <table className="w-full text-xs text-left">
+                                <thead>
+                                  <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-bold">
+                                    <th className="py-2 px-3">Kat</th>
+                                    <th className="py-2 px-3">Pertanyaan</th>
+                                    <th className="py-2 px-3">Kunci / Bobot</th>
+                                    <th className="py-2 px-3">Status Terbit</th>
+                                    <th className="py-2 px-3 text-center">Aksi</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {focusedQuestions.map(q => (
+                                    <tr key={q.id} className={!q.is_active ? 'bg-amber-50/40' : undefined}>
+                                      <td className="py-2 px-3">
+                                        <span className="px-1.5 py-0.5 rounded font-mono font-bold bg-blue-50 text-blue-700 text-[10px]">
+                                          {q.category}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 px-3 text-slate-700 max-w-md truncate">
+                                        {q.question_text}
+                                      </td>
+                                      <td className="py-2 px-3 font-mono font-bold">
+                                        {q.category === 'TKP' ? '1-5' : q.correct_answer}
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            updateQuestion({ ...q, is_active: !q.is_active });
+                                            setBankAssignNotice(
+                                              !q.is_active
+                                                ? 'Butir soal diterbitkan untuk ujian peserta.'
+                                                : 'Butir soal dinonterbitkan sementara.'
+                                            );
+                                            setTimeout(() => setBankAssignNotice(''), 3500);
+                                          }}
+                                          className={`px-2 py-1 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer border ${
+                                            q.is_active
+                                              ? 'bg-emerald-50 hover:bg-amber-50 text-emerald-700 hover:text-amber-800 border-emerald-200'
+                                              : 'bg-amber-100 hover:bg-emerald-100 text-amber-900 hover:text-emerald-800 border-amber-300'
+                                          }`}
+                                          title={q.is_active ? 'Klik untuk Nonterbitkan soal ini' : 'Klik untuk Terbitkan soal ini'}
+                                        >
+                                          {q.is_active ? (
+                                            <>
+                                              <Eye className="w-3 h-3" />
+                                              <span>Terbit</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <EyeOff className="w-3 h-3" />
+                                              <span>Nonterbit</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      </td>
+                                      <td className="py-2 px-3 text-center whitespace-nowrap space-x-1">
+                                        <button
+                                          onClick={() => openEditQuestion(q)}
+                                          className="p-1 rounded text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                          title="Edit Soal"
+                                        >
+                                          <Edit2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            removeQuestionFromPackage(q.id, selectedFocusedPkg.id);
+                                            setBankAssignNotice(
+                                              `Soal dikeluarkan dari kotak "${selectedFocusedPkg.title}" (butir soal tetap aman di Bank Soal).`
+                                            );
+                                            setTimeout(() => setBankAssignNotice(''), 4000);
+                                          }}
+                                          className="p-1 rounded text-amber-600 hover:bg-amber-50 cursor-pointer"
+                                          title="Keluarkan dari Kotak Ini"
+                                        >
+                                          <MinusCircle className="w-3.5 h-3.5" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              })()}
+
+              {/* MODE 2: FLAT TABLE FILTERED BY MENU PESERTA & KOTAK / JUDUL */}
+              {questionViewMode === 'ALL_QUESTIONS' && (() => {
+                const allFilteredSelected =
+                  filteredTableQuestions.length > 0 &&
+                  filteredTableQuestions.every(q => selectedBankQuestionIds.includes(q.id));
+
+                return (
+                  <div className="space-y-3 pt-2">
+                    {/* Bulk Assign Bar (Salin/Masukkan Soal Latihan ke Full Tryout atau Kotak Lain) */}
+                    <div className="p-3 rounded-xl bg-indigo-50/80 border border-indigo-200 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs">
+                      <div className="flex items-center gap-2 text-indigo-950">
+                        <ListPlus className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span>
+                          {selectedBankQuestionIds.length > 0 ? (
+                            <>
+                              <strong>{selectedBankQuestionIds.length} butir soal</strong> dipilih — pilih kotak tujuan (misal Try Out Full) untuk memasukkan soal yang sama:
+                            </>
+                          ) : (
+                            'Centang soal di tabel bawah untuk memasukkannya ke kotak lain (misalnya memasukkan soal Try Out Latihan ke Try Out Full).'
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={bulkTargetPkgId}
+                          onChange={e => setBulkTargetPkgId(e.target.value)}
+                          className="p-2 bg-white border border-indigo-300 rounded-lg text-xs font-semibold text-slate-800 max-w-xs"
+                        >
+                          <option value="">-- Pilih Kotak / Paket Tujuan --</option>
+                          {practicePackages.map(pkg => (
+                            <option key={pkg.id} value={pkg.id}>
+                              [{pkg.category}] {pkg.title}
+                            </option>
+                          ))}
+                        </select>
                         <button
                           type="button"
-                          onClick={() => setSelectedBankQuestionIds([])}
-                          className="px-2.5 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
+                          onClick={handleBulkAssignFromTable}
+                          disabled={selectedBankQuestionIds.length === 0 || !bulkTargetPkgId}
+                          className="px-3.5 py-2 bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold cursor-pointer"
                         >
-                          Batal Pilih
+                          Masukkan ke Kotak Ini
                         </button>
-                      )}
+                        {selectedBankQuestionIds.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBankQuestionIds([])}
+                            className="px-2.5 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
+                          >
+                            Batal Pilih
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-bold">
-                          <th className="py-2.5 px-2.5 text-center w-9">
-                            <input
-                              type="checkbox"
-                              checked={allFilteredSelected}
-                              onChange={e => {
-                                if (e.target.checked) {
-                                  const merged = Array.from(
-                                    new Set([
-                                      ...selectedBankQuestionIds,
-                                      ...filteredTableQuestions.map(q => q.id)
-                                    ])
-                                  );
-                                  setSelectedBankQuestionIds(merged);
-                                } else {
-                                  const visibleSet = new Set(filteredTableQuestions.map(q => q.id));
-                                  setSelectedBankQuestionIds(prev => prev.filter(id => !visibleSet.has(id)));
-                                }
-                              }}
-                              title="Pilih semua soal yang tampil"
-                              className="w-4 h-4 rounded border-slate-300 text-indigo-600 cursor-pointer"
-                            />
-                          </th>
-                          <th className="py-2.5 px-3">Kat</th>
-                          <th className="py-2.5 px-3">Kotak / Judul Soal</th>
-                          <th className="py-2.5 px-3">Pertanyaan</th>
-                          <th className="py-2.5 px-3">Kunci / Bobot TKP</th>
-                          <th className="py-2.5 px-3">Kesulitan</th>
-                          <th className="py-2.5 px-3">Status</th>
-                          <th className="py-2.5 px-3 text-center">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {filteredTableQuestions.map(q => {
-                          const assignedBoxIds = getQuestionPackageIds(q);
-                          const assignedBoxTitles = assignedBoxIds
-                            .map(id => practicePackages.find(p => p.id === id)?.title)
-                            .filter(Boolean) as string[];
-                          const displayBoxes =
-                            assignedBoxTitles.length > 0
-                              ? assignedBoxTitles
-                              : q.package_title
-                              ? [q.package_title]
-                              : [];
-                          const isChecked = selectedBankQuestionIds.includes(q.id);
-
-                          return (
-                            <tr key={q.id} className={isChecked ? 'bg-indigo-50/40' : undefined}>
-                              <td className="py-2.5 px-2.5 text-center">
+                    {filteredTableQuestions.length === 0 ? (
+                      <div className="p-8 text-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 space-y-2.5">
+                        <Database className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="text-xs sm:text-sm font-bold text-slate-700">
+                          {selectedFocusedPkg
+                            ? `Belum ada butir soal yang terkait langsung dengan kotak "${selectedFocusedPkg.title}".`
+                            : `Belum ada butir soal terkait pada filter "${activeMenuObj.label}".`}
+                        </p>
+                        <p className="text-[11px] text-slate-500 max-w-lg mx-auto">
+                          Anda dapat menambah soal baru langsung ke kotak/menu ini, mengambil soal yang sudah ada dari seluruh Bank Soal, atau reset ke Semua Menu untuk melihat seluruh butir soal.
+                        </p>
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleOpenNewQuestion(
+                                selectedFocusedPkg?.id,
+                                selectedFocusedPkg?.title,
+                                selectedFocusedPkg ? 'PICK_EXISTING' : 'NEW'
+                              )
+                            }
+                            className="px-3.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-bold cursor-pointer"
+                          >
+                            {selectedFocusedPkg ? 'Ambil Soal dari Bank ke Kotak Ini' : '+ Tambah Soal Baru'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectBankMenu('ALL')}
+                            className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                          >
+                            Lihat Semua Soal Bank ({questions.length})
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-bold">
+                              <th className="py-2.5 px-2.5 text-center w-9">
                                 <input
                                   type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {
-                                    setSelectedBankQuestionIds(prev =>
-                                      prev.includes(q.id)
-                                        ? prev.filter(id => id !== q.id)
-                                        : [...prev, q.id]
-                                    );
+                                  checked={allFilteredSelected}
+                                  onChange={e => {
+                                    if (e.target.checked) {
+                                      const merged = Array.from(
+                                        new Set([
+                                          ...selectedBankQuestionIds,
+                                          ...filteredTableQuestions.map(q => q.id)
+                                        ])
+                                      );
+                                      setSelectedBankQuestionIds(merged);
+                                    } else {
+                                      const visibleSet = new Set(filteredTableQuestions.map(q => q.id));
+                                      setSelectedBankQuestionIds(prev => prev.filter(id => !visibleSet.has(id)));
+                                    }
                                   }}
+                                  title="Pilih semua soal yang tampil"
                                   className="w-4 h-4 rounded border-slate-300 text-indigo-600 cursor-pointer"
                                 />
-                              </td>
-                              <td className="py-2.5 px-3">
-                                <span className="px-1.5 py-0.5 rounded font-mono font-bold bg-blue-50 text-blue-700 text-[10px]">
-                                  {q.category}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3">
-                                {displayBoxes.length > 0 ? (
-                                  <div className="flex flex-wrap gap-1 max-w-[220px]">
-                                    {displayBoxes.map((title, idx) => (
-                                      <span
-                                        key={idx}
-                                        className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-800 leading-tight"
-                                      >
-                                        {title}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="text-slate-900 font-bold">{q.topic}</div>
-                                )}
-                                {q.topic && !displayBoxes.includes(q.topic) && (
-                                  <div className="text-[10px] text-slate-500 mt-0.5">{q.topic}</div>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-3 text-slate-600 max-w-xs truncate">{q.question_text}</td>
-                              <td className="py-2.5 px-3 font-mono font-bold">
-                                {q.category === 'TKP' ? 'A:1 B:2 C:3 D:4 E:5' : q.correct_answer}
-                              </td>
-                              <td className="py-2.5 px-3 text-slate-500">{q.difficulty}</td>
-                              <td className="py-2.5 px-3">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  q.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                                }`}>
-                                  {q.is_active ? 'Aktif' : 'Nonaktif'}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3 text-center whitespace-nowrap space-x-1">
-                                <button
-                                  onClick={() => openEditQuestion(q)}
-                                  className="p-1 rounded text-blue-600 hover:bg-blue-50"
-                                  title="Edit Soal"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                                {selectedPackageFilter !== 'ALL' && (
-                                  <button
-                                    onClick={() => {
-                                      removeQuestionFromPackage(q.id, selectedPackageFilter);
-                                      setBankAssignNotice('Soal dikeluarkan dari kotak ini (butir soal tetap aman di Bank Soal).');
-                                      setTimeout(() => setBankAssignNotice(''), 4000);
-                                    }}
-                                    className="p-1 rounded text-amber-600 hover:bg-amber-50"
-                                    title="Keluarkan dari Kotak Ini (Tidak menghapus soal dari Bank Soal)"
-                                  >
-                                    <MinusCircle className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    if (confirm('Hapus permanen soal ini dari seluruh Bank Soal?')) deleteQuestion(q.id);
-                                  }}
-                                  className="p-1 rounded text-red-600 hover:bg-red-50"
-                                  title="Hapus Permanen Soal"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
+                              </th>
+                              <th className="py-2.5 px-3">Kat</th>
+                              <th className="py-2.5 px-3">Kotak / Judul Soal</th>
+                              <th className="py-2.5 px-3">Pertanyaan</th>
+                              <th className="py-2.5 px-3">Kunci / Bobot TKP</th>
+                              <th className="py-2.5 px-3">Kesulitan</th>
+                              <th className="py-2.5 px-3">Terbit / Nonterbit</th>
+                              <th className="py-2.5 px-3 text-center">Aksi</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredTableQuestions.map(q => {
+                              const assignedBoxIds = getQuestionPackageIds(q);
+                              const assignedBoxTitles = assignedBoxIds
+                                .map(id => practicePackages.find(p => p.id === id)?.title)
+                                .filter(Boolean) as string[];
+                              const displayBoxes =
+                                assignedBoxTitles.length > 0
+                                  ? assignedBoxTitles
+                                  : q.package_title
+                                  ? [q.package_title]
+                                  : [];
+                              const isChecked = selectedBankQuestionIds.includes(q.id);
+
+                              return (
+                                <tr
+                                  key={q.id}
+                                  className={
+                                    isChecked
+                                      ? 'bg-indigo-50/40'
+                                      : !q.is_active
+                                      ? 'bg-amber-50/30'
+                                      : undefined
+                                  }
+                                >
+                                  <td className="py-2.5 px-2.5 text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {
+                                        setSelectedBankQuestionIds(prev =>
+                                          prev.includes(q.id)
+                                            ? prev.filter(id => id !== q.id)
+                                            : [...prev, q.id]
+                                        );
+                                      }}
+                                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 cursor-pointer"
+                                    />
+                                  </td>
+                                  <td className="py-2.5 px-3">
+                                    <span className="px-1.5 py-0.5 rounded font-mono font-bold bg-blue-50 text-blue-700 text-[10px]">
+                                      {q.category}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-3">
+                                    {displayBoxes.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1 max-w-[220px]">
+                                        {displayBoxes.map((title, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-800 leading-tight"
+                                          >
+                                            {title}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="text-slate-900 font-bold">{q.topic}</div>
+                                    )}
+                                    {q.topic && !displayBoxes.includes(q.topic) && (
+                                      <div className="text-[10px] text-slate-500 mt-0.5">{q.topic}</div>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-slate-600 max-w-xs truncate">{q.question_text}</td>
+                                  <td className="py-2.5 px-3 font-mono font-bold">
+                                    {q.category === 'TKP' ? 'A:1 B:2 C:3 D:4 E:5' : q.correct_answer}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-slate-500">{q.difficulty}</td>
+                                  <td className="py-2.5 px-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        updateQuestion({ ...q, is_active: !q.is_active });
+                                        setBankAssignNotice(
+                                          !q.is_active
+                                            ? 'Butir soal diterbitkan dan aktif untuk ujian peserta.'
+                                            : 'Butir soal dinonterbitkan sementara.'
+                                        );
+                                        setTimeout(() => setBankAssignNotice(''), 3500);
+                                      }}
+                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer border whitespace-nowrap ${
+                                        q.is_active
+                                          ? 'bg-emerald-50 hover:bg-amber-50 text-emerald-700 hover:text-amber-800 border-emerald-200'
+                                          : 'bg-amber-100 hover:bg-emerald-100 text-amber-900 hover:text-emerald-800 border-amber-300'
+                                      }`}
+                                      title={q.is_active ? 'Klik untuk Nonterbitkan' : 'Klik untuk Terbitkan'}
+                                    >
+                                      {q.is_active ? (
+                                        <>
+                                          <Eye className="w-3 h-3" />
+                                          <span>Terbit · Nonterbitkan</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <EyeOff className="w-3 h-3" />
+                                          <span>Nonterbit · Terbitkan</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center whitespace-nowrap space-x-1">
+                                    <button
+                                      onClick={() => openEditQuestion(q)}
+                                      className="p-1 rounded text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                      title="Edit Soal"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    {selectedPackageFilter !== 'ALL' && (
+                                      <button
+                                        onClick={() => {
+                                          removeQuestionFromPackage(q.id, selectedPackageFilter);
+                                          setBankAssignNotice(
+                                            'Soal dikeluarkan dari kotak ini (butir soal tetap aman di Bank Soal).'
+                                          );
+                                          setTimeout(() => setBankAssignNotice(''), 4000);
+                                        }}
+                                        className="p-1 rounded text-amber-600 hover:bg-amber-50 cursor-pointer"
+                                        title="Keluarkan dari Kotak Ini (Tidak menghapus soal dari Bank Soal)"
+                                      >
+                                        <MinusCircle className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDeleteConfirmDialog({
+                                          title: 'Hapus Permanen Butir Soal?',
+                                          message:
+                                            'Butir soal ini akan dihapus permanen dari seluruh Bank Soal dan semua kotak paket terkait.',
+                                          confirmLabel: 'Ya, Hapus Soal',
+                                          onConfirm: () => {
+                                            deleteQuestion(q.id);
+                                            setBankAssignNotice('Butir soal berhasil dihapus permanen.');
+                                            setTimeout(() => setBankAssignNotice(''), 4000);
+                                          }
+                                        });
+                                      }}
+                                      className="p-1 rounded text-red-600 hover:bg-red-50 cursor-pointer"
+                                      title="Hapus Permanen Soal"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ================= 4. IMPORT SOAL (PRD 11.3) ================= */}
       {currentAdminTab === 'admin-import' && (() => {
@@ -4296,9 +5522,12 @@ TINGKAT KESULITAN: Sedang`;
                         <button
                           type="button"
                           onClick={() => {
-                            if (confirm(`Hapus materi "${m.title}"?`)) {
-                              deleteMaterial(m.id);
-                            }
+                            setDeleteConfirmDialog({
+                              title: 'Hapus Modul Materi?',
+                              message: `Materi "${m.title}" akan dihapus permanen dari daftar materi peserta.`,
+                              confirmLabel: 'Ya, Hapus Materi',
+                              onConfirm: () => deleteMaterial(m.id)
+                            });
                           }}
                           className="p-1 rounded text-red-600 hover:bg-red-50"
                           title="Hapus Materi"
@@ -4551,9 +5780,12 @@ TINGKAT KESULITAN: Sedang`;
                             <button
                               type="button"
                               onClick={() => {
-                                if (confirm(`Hapus short video "${sv.title}"?`)) {
-                                  deleteShortVideo(sv.id);
-                                }
+                                setDeleteConfirmDialog({
+                                  title: 'Hapus Short Video?',
+                                  message: `Short video "${sv.title}" akan dihapus permanen dari daftar video belajar.`,
+                                  confirmLabel: 'Ya, Hapus Video',
+                                  onConfirm: () => deleteShortVideo(sv.id)
+                                });
                               }}
                               className="p-1.5 rounded text-red-600 hover:bg-red-50"
                               title="Hapus Short Video"
@@ -8993,9 +10225,12 @@ TINGKAT KESULITAN: Sedang`;
                       <button
                         type="button"
                         onClick={() => {
-                          if (confirm(`Hapus pengumuman "${ann.title}"?`)) {
-                            deleteAnnouncement(ann.id);
-                          }
+                          setDeleteConfirmDialog({
+                            title: 'Hapus Pengumuman?',
+                            message: `Pengumuman "${ann.title}" akan dihapus permanen dari halaman informasi peserta.`,
+                            confirmLabel: 'Ya, Hapus Pengumuman',
+                            onConfirm: () => deleteAnnouncement(ann.id)
+                          });
                         }}
                         className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg font-semibold inline-flex items-center gap-1.5 cursor-pointer"
                       >
@@ -12666,6 +13901,55 @@ TINGKAT KESULITAN: Sedang`;
                 alt={sessionImagePreview.title}
                 className="max-w-full max-h-[68vh] object-contain rounded-lg"
               />
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal 9: In-App Delete Confirmation Dialog (Safe for Sandboxed iFrame) */}
+      {deleteConfirmDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs"
+          onClick={() => setDeleteConfirmDialog(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden"
+          >
+            <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-red-50/70">
+              <div className="w-9 h-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                <Trash2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900">
+                  {deleteConfirmDialog.title}
+                </h3>
+                <p className="text-[11px] text-slate-500">Tindakan ini tidak dapat dibatalkan</p>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-slate-700 leading-relaxed">
+                {deleteConfirmDialog.message}
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmDialog(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const action = deleteConfirmDialog.onConfirm;
+                    setDeleteConfirmDialog(null);
+                    action();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  {deleteConfirmDialog.confirmLabel}
+                </button>
+              </div>
             </div>
           </div>
         </div>

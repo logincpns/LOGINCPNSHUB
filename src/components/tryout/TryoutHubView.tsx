@@ -67,9 +67,10 @@ export const TryoutHubView: React.FC = () => {
   const isPremiumUser = hasPaidQuestionAccess(currentUser);
   const canAccessZoom = hasZoomAccess(currentUser);
 
-  // Filtered Try Out packages (type TRYOUT_SKD)
+  // Filtered Try Out packages (type TRYOUT_SKD / TRYOUT_AKBAR, published only)
   const filteredTryouts = useMemo(() => {
     return practicePackages
+      .filter(p => p.is_active !== false)
       .filter(p => p.package_type === 'TRYOUT_SKD' || p.package_type === 'TRYOUT_AKBAR')
       .filter(p => {
         if (!searchTryout.trim()) return true;
@@ -90,9 +91,10 @@ export const TryoutHubView: React.FC = () => {
       });
   }, [practicePackages, searchTryout, tierFilterTryout, sortByTryout]);
 
-  // Filtered Latihan packages (type LATIHAN_HARIAN / DRILL_KATEGORI)
+  // Filtered Latihan packages (type LATIHAN_HARIAN / DRILL_KATEGORI, published only)
   const filteredLatihan = useMemo(() => {
     return practicePackages
+      .filter(p => p.is_active !== false)
       .filter(p => p.package_type === 'LATIHAN_HARIAN' || p.package_type === 'DRILL_KATEGORI')
       .filter(p => {
         if (!searchLatihan.trim()) return true;
@@ -267,7 +269,7 @@ export const TryoutHubView: React.FC = () => {
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              Semua ({practicePackages.filter(p => p.package_type === 'TRYOUT_SKD' || p.package_type === 'TRYOUT_AKBAR').length})
+              Semua ({practicePackages.filter(p => p.is_active !== false && (p.package_type === 'TRYOUT_SKD' || p.package_type === 'TRYOUT_AKBAR')).length})
             </button>
             <button
               onClick={() => setTierFilterTryout('GRATIS')}
@@ -558,7 +560,7 @@ export const TryoutHubView: React.FC = () => {
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              Semua ({practicePackages.filter(p => p.package_type === 'LATIHAN_HARIAN' || p.package_type === 'DRILL_KATEGORI').length})
+              Semua ({practicePackages.filter(p => p.is_active !== false && (p.package_type === 'LATIHAN_HARIAN' || p.package_type === 'DRILL_KATEGORI')).length})
             </button>
             <button
               onClick={() => setCatFilterLatihan('TIU')}
