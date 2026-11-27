@@ -205,6 +205,11 @@ export const AdminDashboardView: React.FC = () => {
   const [qWeightD, setQWeightD] = useState(4);
   const [qWeightE, setQWeightE] = useState(5);
   const [qExp, setQExp] = useState('');
+  const [qImageUrl, setQImageUrl] = useState('');
+  const [qExpImageUrl, setQExpImageUrl] = useState('');
+  const [qImageUploading, setQImageUploading] = useState<'QUESTION' | 'EXPLANATION' | null>(null);
+  const [qImageDragOver, setQImageDragOver] = useState<'QUESTION' | 'EXPLANATION' | null>(null);
+  const [qFormError, setQFormError] = useState('');
   const [qDiff, setQDiff] = useState<DifficultyLevel>('Sedang');
   const [qPackageId, setQPackageId] = useState('');
   const [qPackageTitle, setQPackageTitle] = useState('');
@@ -453,6 +458,12 @@ export const AdminDashboardView: React.FC = () => {
   const [importError, setImportError] = useState('');
   const [importPackageId, setImportPackageId] = useState('');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImportDragOver, setIsImportDragOver] = useState(false);
+  const [uploadedImportFile, setUploadedImportFile] = useState<{ name: string; size: number } | null>(null);
+
+  // --- Sub-state for Full Question Detail Review Modal (Eye Button) ---
+  const [previewDetailQuestion, setPreviewDetailQuestion] = useState<Question | null>(null);
+  const [previewDetailListIds, setPreviewDetailListIds] = useState<string[]>([]);
 
   // --- Sub-state for Material CRUD & Google Drive (PRD Section 12) ---
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
@@ -1111,11 +1122,33 @@ export const AdminDashboardView: React.FC = () => {
     }
   };
 
+  const handleQuestionImageUpload = async (file: File, target: 'QUESTION' | 'EXPLANATION') => {
+    if (!file.type.startsWith('image/')) {
+      setQFormError(`File "${file.name}" bukan gambar. Pilih file gambar (.png, .jpg, .jpeg, .webp).`);
+      return;
+    }
+    setQFormError('');
+    setQImageUploading(target);
+    try {
+      const compressed = await readAndCompressImageFile(file, 1000, 0.82);
+      if (target === 'QUESTION') {
+        setQImageUrl(compressed);
+      } else {
+        setQExpImageUrl(compressed);
+      }
+    } catch {
+      setQFormError('Gagal memproses file gambar. Silakan coba gambar lain.');
+    } finally {
+      setQImageUploading(null);
+    }
+  };
+
   // Handlers for Question CRUD with Package Assignment
   const handleSaveQuestion = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!qText.trim() || !qOptA.trim() || !qOptB.trim()) {
-      alert('Mohon lengkapi pertanyaan dan pilihan jawaban.');
+    setQFormError('');
+    if ((!qText.trim() && !qImageUrl) || !qOptA.trim() || !qOptB.trim()) {
+      setQFormError('Mohon isi teks pertanyaan atau unggah gambar soal, serta lengkapi pilihan jawaban A dan B.');
       return;
     }
 
@@ -1128,7 +1161,8 @@ export const AdminDashboardView: React.FC = () => {
         ...editingQuestion,
         category: qCat,
         topic: qTopic || 'Umum',
-        question_text: qText,
+        question_text: qText.trim(),
+        question_image_url: qImageUrl || '',
         option_a: qOptA,
         option_b: qOptB,
         option_c: qOptC,
@@ -1140,7 +1174,8 @@ export const AdminDashboardView: React.FC = () => {
         weight_c: Number(qWeightC),
         weight_d: Number(qWeightD),
         weight_e: Number(qWeightE),
-        explanation: qExp,
+        explanation: qExp.trim(),
+        explanation_image_url: qExpImageUrl || '',
         difficulty: qDiff,
         package_id: qPackageId || allAssignedPkgIds[0] || undefined,
         package_title:
@@ -1155,7 +1190,8 @@ export const AdminDashboardView: React.FC = () => {
       addQuestion({
         category: qCat,
         topic: qTopic || 'Umum',
-        question_text: qText,
+        question_text: qText.trim(),
+        ...(qImageUrl ? { question_image_url: qImageUrl } : {}),
         option_a: qOptA,
         option_b: qOptB,
         option_c: qOptC,
@@ -1167,7 +1203,8 @@ export const AdminDashboardView: React.FC = () => {
         weight_c: Number(qWeightC),
         weight_d: Number(qWeightD),
         weight_e: Number(qWeightE),
-        explanation: qExp,
+        explanation: qExp.trim(),
+        ...(qExpImageUrl ? { explanation_image_url: qExpImageUrl } : {}),
         difficulty: qDiff,
         package_id: qPackageId || allAssignedPkgIds[0] || undefined,
         package_title:
@@ -1206,6 +1243,10 @@ export const AdminDashboardView: React.FC = () => {
       setQCat(adminBankCatFilter);
     }
     setQText('');
+    setQImageUrl('');
+    setQExpImageUrl('');
+    setQFormError('');
+    setQImageDragOver(null);
     setQTopic(packageTitle || '');
     setQOptA('');
     setQOptB('');
@@ -1226,6 +1267,10 @@ export const AdminDashboardView: React.FC = () => {
     setQPackageTitle(q.package_title || '');
     setQExtraPackageIds(getQuestionPackageIds(q).filter(id => id !== primaryId));
     setQText(q.question_text);
+    setQImageUrl(q.question_image_url || '');
+    setQExpImageUrl(q.explanation_image_url || '');
+    setQFormError('');
+    setQImageDragOver(null);
     setQOptA(q.option_a);
     setQOptB(q.option_b);
     setQOptC(q.option_c);
@@ -1690,8 +1735,17 @@ TINGKAT KESULITAN: Sedang
     setImportError('');
     setImportPreview([]);
     setImportText('');
+    setUploadedImportFile(null);
+    setIsImportDragOver(false);
     setImportPackageId(pkg ? pkg.id : '');
     setIsImportModalOpen(true);
+  };
+
+  const openPreviewQuestion = (q: Question, contextList?: Question[]) => {
+    setPreviewDetailQuestion(q);
+    setPreviewDetailListIds(
+      contextList && contextList.length > 0 ? contextList.map(item => item.id) : questions.map(item => item.id)
+    );
   };
 
   // Structured DOCX/Text & CSV Parser per PRD Section 11.3
@@ -1863,17 +1917,59 @@ TINGKAT KESULITAN: Sedang
     }
   };
 
-  const handleImportFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processUploadedImportFile = (file: File) => {
+    const lowerName = file.name.toLowerCase();
+    const isValidExt = lowerName.endsWith('.txt') || lowerName.endsWith('.csv') || file.type.startsWith('text/');
+    if (!isValidExt) {
+      setImportError(
+        `File "${file.name}" tidak didukung. Silakan unggah atau seret file berformat .txt atau .csv (jika dari Word, pilih Save As > Plain Text .txt terlebih dahulu).`
+      );
+      return;
+    }
+    setImportError('');
     const reader = new FileReader();
     reader.onload = ev => {
-      const content = String(ev.target?.result || '');
+      const raw = String(ev.target?.result || '');
+      const content = raw.replace(/^\uFEFF/, '');
+      setUploadedImportFile({ name: file.name, size: file.size });
       setImportText(content);
       parseStructuredText(content);
     };
-    reader.readAsText(file);
+    reader.onerror = () => {
+      setImportError(`Gagal membaca file "${file.name}". Pastikan file tidak rusak dan coba lagi.`);
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  const handleImportFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processUploadedImportFile(file);
     e.target.value = '';
+  };
+
+  const handleImportDrop = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsImportDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      processUploadedImportFile(file);
+    }
+  };
+
+  const handleImportDragOver = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isImportDragOver) {
+      setIsImportDragOver(true);
+    }
+  };
+
+  const handleImportDragLeave = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsImportDragOver(false);
   };
 
   const handleCommitImport = () => {
@@ -1885,13 +1981,16 @@ TINGKAT KESULITAN: Sedang
       package_title: targetPkg?.title || q.package_title
     }));
     bulkImportQuestions(enriched);
-    alert(
+    setBankAssignNotice(
       targetPkg
         ? `Berhasil mengimpor ${enriched.length} butir soal langsung ke kotak "${targetPkg.title}"!`
         : `Berhasil mengimpor ${enriched.length} butir soal ke Bank Soal!`
     );
+    setTimeout(() => setBankAssignNotice(''), 5500);
     setImportPreview([]);
     setImportText('');
+    setUploadedImportFile(null);
+    setIsImportDragOver(false);
     setIsImportModalOpen(false);
     setActiveView('admin-questions');
   };
@@ -4782,6 +4881,7 @@ TINGKAT KESULITAN: Sedang
                               <table className="w-full text-xs text-left">
                                 <thead>
                                   <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-bold">
+                                    <th className="py-2 px-3 w-12 text-center">No</th>
                                     <th className="py-2 px-3">Kat</th>
                                     <th className="py-2 px-3">Pertanyaan</th>
                                     <th className="py-2 px-3">Kunci / Bobot</th>
@@ -4790,15 +4890,31 @@ TINGKAT KESULITAN: Sedang
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                  {focusedQuestions.map(q => (
+                                  {focusedQuestions.map((q, qIdx) => (
                                     <tr key={q.id} className={!q.is_active ? 'bg-amber-50/40' : undefined}>
+                                      <td className="py-2 px-3 text-center font-mono font-bold text-slate-600">
+                                        {qIdx + 1}
+                                      </td>
                                       <td className="py-2 px-3">
                                         <span className="px-1.5 py-0.5 rounded font-mono font-bold bg-blue-50 text-blue-700 text-[10px]">
                                           {q.category}
                                         </span>
                                       </td>
-                                      <td className="py-2 px-3 text-slate-700 max-w-md truncate">
-                                        {q.question_text}
+                                      <td className="py-2 px-3 text-slate-700 max-w-md">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          {(q.question_image_url || q.explanation_image_url) && (
+                                            <span
+                                              className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold inline-flex items-center gap-0.5 shrink-0"
+                                              title="Soal memiliki lampiran gambar"
+                                            >
+                                              <ImageIcon className="w-2.5 h-2.5" />
+                                              <span>Gambar</span>
+                                            </span>
+                                          )}
+                                          <span className="truncate">
+                                            {q.question_text?.trim() || '[Soal Gambar Figural]'}
+                                          </span>
+                                        </div>
                                       </td>
                                       <td className="py-2 px-3 font-mono font-bold">
                                         {q.category === 'TKP' ? '1-5' : q.correct_answer}
@@ -4837,13 +4953,23 @@ TINGKAT KESULITAN: Sedang
                                       </td>
                                       <td className="py-2 px-3 text-center whitespace-nowrap space-x-1">
                                         <button
+                                          type="button"
+                                          onClick={() => openPreviewQuestion(q, focusedQuestions)}
+                                          className="p-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 cursor-pointer inline-flex items-center justify-center"
+                                          title="Lihat Detail Soal Lengkap (Soal, Kunci Jawaban & Pembahasan)"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
                                           onClick={() => openEditQuestion(q)}
-                                          className="p-1 rounded text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                          className="p-1 rounded text-blue-600 hover:bg-blue-50 cursor-pointer inline-flex items-center justify-center"
                                           title="Edit Soal"
                                         >
                                           <Edit2 className="w-3.5 h-3.5" />
                                         </button>
                                         <button
+                                          type="button"
                                           onClick={() => {
                                             removeQuestionFromPackage(q.id, selectedFocusedPkg.id);
                                             setBankAssignNotice(
@@ -4851,7 +4977,7 @@ TINGKAT KESULITAN: Sedang
                                             );
                                             setTimeout(() => setBankAssignNotice(''), 4000);
                                           }}
-                                          className="p-1 rounded text-amber-600 hover:bg-amber-50 cursor-pointer"
+                                          className="p-1 rounded text-amber-600 hover:bg-amber-50 cursor-pointer inline-flex items-center justify-center"
                                           title="Keluarkan dari Kotak Ini"
                                         >
                                           <MinusCircle className="w-3.5 h-3.5" />
@@ -4986,6 +5112,7 @@ TINGKAT KESULITAN: Sedang
                                   className="w-4 h-4 rounded border-slate-300 text-indigo-600 cursor-pointer"
                                 />
                               </th>
+                              <th className="py-2.5 px-2.5 text-center w-12">No</th>
                               <th className="py-2.5 px-3">Kat</th>
                               <th className="py-2.5 px-3">Kotak / Judul Soal</th>
                               <th className="py-2.5 px-3">Pertanyaan</th>
@@ -4996,7 +5123,7 @@ TINGKAT KESULITAN: Sedang
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {filteredTableQuestions.map(q => {
+                            {filteredTableQuestions.map((q, qIdx) => {
                               const assignedBoxIds = getQuestionPackageIds(q);
                               const assignedBoxTitles = assignedBoxIds
                                 .map(id => practicePackages.find(p => p.id === id)?.title)
@@ -5034,6 +5161,9 @@ TINGKAT KESULITAN: Sedang
                                       className="w-4 h-4 rounded border-slate-300 text-indigo-600 cursor-pointer"
                                     />
                                   </td>
+                                  <td className="py-2.5 px-2.5 text-center font-mono font-bold text-slate-600">
+                                    {qIdx + 1}
+                                  </td>
                                   <td className="py-2.5 px-3">
                                     <span className="px-1.5 py-0.5 rounded font-mono font-bold bg-blue-50 text-blue-700 text-[10px]">
                                       {q.category}
@@ -5058,7 +5188,22 @@ TINGKAT KESULITAN: Sedang
                                       <div className="text-[10px] text-slate-500 mt-0.5">{q.topic}</div>
                                     )}
                                   </td>
-                                  <td className="py-2.5 px-3 text-slate-600 max-w-xs truncate">{q.question_text}</td>
+                                  <td className="py-2.5 px-3 text-slate-600 max-w-xs">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      {(q.question_image_url || q.explanation_image_url) && (
+                                        <span
+                                          className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold inline-flex items-center gap-0.5 shrink-0"
+                                          title="Soal memiliki lampiran gambar"
+                                        >
+                                          <ImageIcon className="w-2.5 h-2.5" />
+                                          <span>Gambar</span>
+                                        </span>
+                                      )}
+                                      <span className="truncate">
+                                        {q.question_text?.trim() || '[Soal Gambar Figural]'}
+                                      </span>
+                                    </div>
+                                  </td>
                                   <td className="py-2.5 px-3 font-mono font-bold">
                                     {q.category === 'TKP' ? 'A:1 B:2 C:3 D:4 E:5' : q.correct_answer}
                                   </td>
@@ -5097,14 +5242,24 @@ TINGKAT KESULITAN: Sedang
                                   </td>
                                   <td className="py-2.5 px-3 text-center whitespace-nowrap space-x-1">
                                     <button
+                                      type="button"
+                                      onClick={() => openPreviewQuestion(q, filteredTableQuestions)}
+                                      className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 cursor-pointer inline-flex items-center justify-center"
+                                      title="Lihat Detail Soal Lengkap (Soal, Kunci Jawaban & Pembahasan)"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
                                       onClick={() => openEditQuestion(q)}
-                                      className="p-1 rounded text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                      className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 cursor-pointer inline-flex items-center justify-center"
                                       title="Edit Soal"
                                     >
                                       <Edit2 className="w-3.5 h-3.5" />
                                     </button>
                                     {selectedPackageFilter !== 'ALL' && (
                                       <button
+                                        type="button"
                                         onClick={() => {
                                           removeQuestionFromPackage(q.id, selectedPackageFilter);
                                           setBankAssignNotice(
@@ -5112,7 +5267,7 @@ TINGKAT KESULITAN: Sedang
                                           );
                                           setTimeout(() => setBankAssignNotice(''), 4000);
                                         }}
-                                        className="p-1 rounded text-amber-600 hover:bg-amber-50 cursor-pointer"
+                                        className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 cursor-pointer inline-flex items-center justify-center"
                                         title="Keluarkan dari Kotak Ini (Tidak menghapus soal dari Bank Soal)"
                                       >
                                         <MinusCircle className="w-3.5 h-3.5" />
@@ -5133,7 +5288,7 @@ TINGKAT KESULITAN: Sedang
                                           }
                                         });
                                       }}
-                                      className="p-1 rounded text-red-600 hover:bg-red-50 cursor-pointer"
+                                      className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 cursor-pointer inline-flex items-center justify-center"
                                       title="Hapus Permanen Soal"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -5219,27 +5374,88 @@ TINGKAT KESULITAN: Sedang
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700">
-                    3. Tempel Teks Soal atau Unggah File (.txt / .csv):
-                  </label>
-                  <label className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold cursor-pointer flex items-center gap-1 border border-slate-300">
-                    <Upload className="w-3 h-3" />
-                    <span>Upload File .txt / .csv</span>
-                    <input
-                      type="file"
-                      accept=".txt,.csv"
-                      onChange={handleImportFileUpload}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
+                <label className="text-xs font-bold text-slate-700 block">
+                  3. Seret &amp; Lepas File (.txt / .csv) atau Tempel Teks Soal:
+                </label>
 
-                <textarea
-                  rows={12}
-                  value={importText}
-                  onChange={e => setImportText(e.target.value)}
-                  placeholder={`===SOAL===
+                <label
+                  onDragEnter={handleImportDragOver}
+                  onDragOver={handleImportDragOver}
+                  onDragLeave={handleImportDragLeave}
+                  onDrop={handleImportDrop}
+                  className={`flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                    isImportDragOver
+                      ? 'border-emerald-500 bg-emerald-50 ring-4 ring-emerald-200/70'
+                      : 'border-blue-300 bg-blue-50/50 hover:bg-blue-50 hover:border-blue-500'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 text-left">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                        isImportDragOver ? 'bg-emerald-600 text-white' : 'bg-blue-100 text-blue-700'
+                      }`}
+                    >
+                      <Upload className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-extrabold text-slate-900">
+                        {isImportDragOver
+                          ? 'Lepaskan file .TXT / .CSV di sini sekarang!'
+                          : 'Seret (Drag & Drop) File .TXT / .CSV ke Tombol Ini'}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        Atau klik area ini untuk memilih file dari perangkat Anda
+                      </div>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold shrink-0 shadow-2xs">
+                    Pilih File .txt / .csv
+                  </span>
+                  <input
+                    type="file"
+                    accept=".txt,.csv,text/plain,text/csv"
+                    onChange={handleImportFileUpload}
+                    className="hidden"
+                  />
+                </label>
+
+                {uploadedImportFile && (
+                  <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2 text-[11px] text-emerald-900">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                      <span className="font-bold truncate">{uploadedImportFile.name}</span>
+                      <span className="text-emerald-700 shrink-0">
+                        ({formatFileSize(uploadedImportFile.size)}) · {importPreview.length} soal terbaca
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadedImportFile(null);
+                        setImportText('');
+                        setImportPreview([]);
+                        setImportError('');
+                      }}
+                      className="text-emerald-700 hover:text-red-600 p-0.5 cursor-pointer shrink-0"
+                      title="Bersihkan file terunggah"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                <div
+                  onDragEnter={handleImportDragOver}
+                  onDragOver={handleImportDragOver}
+                  onDragLeave={handleImportDragLeave}
+                  onDrop={handleImportDrop}
+                  className="rounded-xl"
+                >
+                  <textarea
+                    rows={11}
+                    value={importText}
+                    onChange={e => setImportText(e.target.value)}
+                    placeholder={`===SOAL===
 KATEGORI: ${selectedPkg && selectedPkg.category !== 'CAMPURAN' ? selectedPkg.category : 'TWK'}
 JUDUL: ${selectedPkg ? selectedPkg.title : 'Nasionalisme'}
 PERTANYAAN: Contoh pertanyaan nasionalisme...
@@ -5251,8 +5467,9 @@ E: Opsi jawaban E
 KUNCI JAWABAN: B
 PEMBAHASAN: Penjelasan lengkap...
 TINGKAT KESULITAN: Sedang`}
-                  className="w-full p-3 font-mono text-[11px] bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                    className="w-full p-3 font-mono text-[11px] bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -11728,20 +11945,118 @@ TINGKAT KESULITAN: Sedang`;
                     </div>
                   </div>
 
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Pertanyaan Soal</label>
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="font-bold text-slate-700">
+                        Pertanyaan Soal <span className="font-normal text-slate-400">(Teks &amp;/atau Gambar Figural)</span>
+                      </label>
+                    </div>
                     <textarea
                       rows={3}
                       value={qText}
                       onChange={e => setQText(e.target.value)}
+                      placeholder="Tulis teks pertanyaan (atau tulis instruksi singkat seperti 'Perhatikan gambar berikut!' jika soal berbentuk gambar TIU Figural)..."
                       className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg"
-                      required
+                      required={!qImageUrl}
                     />
+
+                    {/* Upload Gambar Soal (TIU Figural / Grafik / Tabel) */}
+                    <div
+                      onDragOver={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setQImageDragOver('QUESTION');
+                      }}
+                      onDragLeave={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setQImageDragOver(null);
+                      }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setQImageDragOver(null);
+                        const f = e.dataTransfer?.files?.[0];
+                        if (f) void handleQuestionImageUpload(f, 'QUESTION');
+                      }}
+                      className={`p-3 rounded-xl border-2 border-dashed transition-all space-y-2.5 ${
+                        qImageDragOver === 'QUESTION'
+                          ? 'border-emerald-500 bg-emerald-50'
+                          : 'border-blue-200 bg-blue-50/40'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-[11px] text-slate-700">
+                          <ImageIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span>
+                            <strong>Upload Gambar Soal (Opsional):</strong> Cocok untuk TIU Figural, grafik, atau tabel. Bisa klik atau seret gambar ke sini.
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-bold text-[11px] cursor-pointer shadow-2xs">
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>
+                              {qImageUploading === 'QUESTION'
+                                ? 'Memproses...'
+                                : qImageUrl
+                                ? 'Ganti Gambar Soal'
+                                : 'Upload Gambar Soal'}
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (f) void handleQuestionImageUpload(f, 'QUESTION');
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                          {qImageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setQImageUrl('')}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-[11px] cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Hapus</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {qImageUrl && (
+                        <div className="p-2 bg-white rounded-lg border border-slate-200 flex justify-center">
+                          <img
+                            src={qImageUrl}
+                            alt="Preview Gambar Soal"
+                            className="max-h-52 w-auto max-w-full object-contain rounded"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Options A-E */}
                   <div className="space-y-2">
-                    <label className="font-bold text-slate-700 block">Pilihan Jawaban (A s/d E):</label>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="font-bold text-slate-700">Pilihan Jawaban (A s/d E):</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!qOptA.trim()) setQOptA('Pilihan A');
+                          if (!qOptB.trim()) setQOptB('Pilihan B');
+                          if (!qOptC.trim()) setQOptC('Pilihan C');
+                          if (!qOptD.trim()) setQOptD('Pilihan D');
+                          if (!qOptE.trim()) setQOptE('Pilihan E');
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-[11px] font-bold cursor-pointer"
+                        title="Jika opsi A–E sudah ada di dalam gambar soal figural, klik ini untuk mengisi label Pilihan A–E otomatis"
+                      >
+                        Isi Cepat Label Pilihan A–E (Soal Gambar)
+                      </button>
+                    </div>
                     {(['A', 'B', 'C', 'D', 'E'] as const).map(key => {
                       const stateVal = key === 'A' ? qOptA : key === 'B' ? qOptB : key === 'C' ? qOptC : key === 'D' ? qOptD : qOptE;
                       const setVal = key === 'A' ? setQOptA : key === 'B' ? setQOptB : key === 'C' ? setQOptC : key === 'D' ? setQOptD : setQOptE;
@@ -11794,27 +12109,114 @@ TINGKAT KESULITAN: Sedang`;
                     </div>
                   )}
 
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Penjelasan / Pembahasan</label>
+                  <div className="space-y-2.5">
+                    <label className="font-bold text-slate-700 block">
+                      Penjelasan / Pembahasan <span className="font-normal text-slate-400">(Teks &amp;/atau Gambar Pembahasan)</span>
+                    </label>
                     <textarea
                       rows={3}
                       value={qExp}
                       onChange={e => setQExp(e.target.value)}
+                      placeholder="Tulis penjelasan atau langkah penyelesaian soal..."
                       className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg"
                     />
+
+                    {/* Upload Gambar Pembahasan */}
+                    <div
+                      onDragOver={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setQImageDragOver('EXPLANATION');
+                      }}
+                      onDragLeave={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setQImageDragOver(null);
+                      }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setQImageDragOver(null);
+                        const f = e.dataTransfer?.files?.[0];
+                        if (f) void handleQuestionImageUpload(f, 'EXPLANATION');
+                      }}
+                      className={`p-3 rounded-xl border-2 border-dashed transition-all space-y-2.5 ${
+                        qImageDragOver === 'EXPLANATION'
+                          ? 'border-emerald-500 bg-emerald-50'
+                          : 'border-emerald-200 bg-emerald-50/40'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-[11px] text-slate-700">
+                          <ImageIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>
+                            <strong>Upload Gambar Pembahasan (Opsional):</strong> Lampirkan gambar penjelasan pola/coretan rumus. Bisa klik atau seret gambar ke sini.
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] cursor-pointer shadow-2xs">
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>
+                              {qImageUploading === 'EXPLANATION'
+                                ? 'Memproses...'
+                                : qExpImageUrl
+                                ? 'Ganti Gambar Pembahasan'
+                                : 'Upload Gambar Pembahasan'}
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (f) void handleQuestionImageUpload(f, 'EXPLANATION');
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                          {qExpImageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setQExpImageUrl('')}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-[11px] cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Hapus</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {qExpImageUrl && (
+                        <div className="p-2 bg-white rounded-lg border border-slate-200 flex justify-center">
+                          <img
+                            src={qExpImageUrl}
+                            alt="Preview Gambar Pembahasan"
+                            className="max-h-52 w-auto max-w-full object-contain rounded"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  {qFormError && (
+                    <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[11px] flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{qFormError}</span>
+                    </div>
+                  )}
 
                   <div className="pt-2 flex justify-end gap-2 border-t border-slate-200">
                     <button
                       type="button"
                       onClick={() => setIsQuestionModalOpen(false)}
-                      className="px-4 py-2 border rounded-xl"
+                      className="px-4 py-2 border rounded-xl cursor-pointer"
                     >
                       Batal
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl"
+                      className="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl cursor-pointer"
                     >
                       Simpan Soal
                     </button>
@@ -12381,28 +12783,91 @@ TINGKAT KESULITAN: Sedang`;
                   </select>
                 </div>
 
-                {/* Step 2: Upload or Paste */}
+                {/* Step 2: Upload (Drag & Drop) or Paste */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <label className="font-bold text-slate-700">2. Tempel Isi Soal atau Unggah File:</label>
-                      <label className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold cursor-pointer flex items-center gap-1 border border-slate-300">
-                        <Upload className="w-3 h-3" />
-                        <span>Upload .txt / .csv</span>
-                        <input
-                          type="file"
-                          accept=".txt,.csv"
-                          onChange={handleImportFileUpload}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
+                    <label className="font-bold text-slate-700 block">
+                      2. Seret File (.txt / .csv) atau Tempel Isi Soal:
+                    </label>
 
-                    <textarea
-                      rows={10}
-                      value={importText}
-                      onChange={e => setImportText(e.target.value)}
-                      placeholder={`===SOAL===
+                    <label
+                      onDragEnter={handleImportDragOver}
+                      onDragOver={handleImportDragOver}
+                      onDragLeave={handleImportDragLeave}
+                      onDrop={handleImportDrop}
+                      className={`flex items-center justify-between gap-2.5 p-3 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                        isImportDragOver
+                          ? 'border-emerald-500 bg-emerald-50 ring-4 ring-emerald-200/70'
+                          : 'border-blue-300 bg-blue-50/50 hover:bg-blue-50 hover:border-blue-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                            isImportDragOver ? 'bg-emerald-600 text-white' : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-extrabold text-slate-900 leading-tight">
+                            {isImportDragOver
+                              ? 'Lepaskan file .TXT / .CSV di sini!'
+                              : 'Seret (Drag & Drop) File .TXT / .CSV ke Sini'}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            Atau klik untuk pilih file dari komputer
+                          </div>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-[10px] font-bold shrink-0 shadow-2xs">
+                        Upload .txt / .csv
+                      </span>
+                      <input
+                        type="file"
+                        accept=".txt,.csv,text/plain,text/csv"
+                        onChange={handleImportFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {uploadedImportFile && (
+                      <div className="px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2 text-[11px] text-emerald-900">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <FileText className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                          <span className="font-bold truncate">{uploadedImportFile.name}</span>
+                          <span className="text-emerald-700 shrink-0">
+                            ({formatFileSize(uploadedImportFile.size)}) · {importPreview.length} soal
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUploadedImportFile(null);
+                            setImportText('');
+                            setImportPreview([]);
+                            setImportError('');
+                          }}
+                          className="text-emerald-700 hover:text-red-600 p-0.5 cursor-pointer shrink-0"
+                          title="Hapus file terunggah"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    <div
+                      onDragEnter={handleImportDragOver}
+                      onDragOver={handleImportDragOver}
+                      onDragLeave={handleImportDragLeave}
+                      onDrop={handleImportDrop}
+                      className="rounded-xl"
+                    >
+                      <textarea
+                        rows={8}
+                        value={importText}
+                        onChange={e => setImportText(e.target.value)}
+                        placeholder={`===SOAL===
 KATEGORI: ${selectedPkg && selectedPkg.category !== 'CAMPURAN' ? selectedPkg.category : 'TIU'}
 JUDUL: ${selectedPkg ? selectedPkg.title : 'Penalaran Logis'}
 PERTANYAAN: Tulis soal di sini...
@@ -12414,8 +12879,9 @@ E: Pilihan E
 KUNCI JAWABAN: B
 PEMBAHASAN: Tulis pembahasan di sini...
 TINGKAT KESULITAN: Sedang`}
-                      className="w-full p-3 font-mono text-[11px] bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                        className="w-full p-3 font-mono text-[11px] bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
 
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -13954,6 +14420,304 @@ TINGKAT KESULITAN: Sedang`;
           </div>
         </div>
       )}
+
+      {/* Modal 10: Preview Detail Soal Lengkap (Soal, Kunci Jawaban & Pembahasan) */}
+      {previewDetailQuestion && (() => {
+        const activeQ = questions.find(item => item.id === previewDetailQuestion.id) || previewDetailQuestion;
+        const currentIdx = previewDetailListIds.indexOf(activeQ.id);
+        const totalInContext = previewDetailListIds.length;
+        const hasPrev = currentIdx > 0;
+        const hasNext = currentIdx >= 0 && currentIdx < totalInContext - 1;
+
+        const goToContextIndex = (nextIdx: number) => {
+          const targetId = previewDetailListIds[nextIdx];
+          if (!targetId) return;
+          const found = questions.find(item => item.id === targetId);
+          if (found) setPreviewDetailQuestion(found);
+        };
+
+        const assignedBoxes = getQuestionPackageIds(activeQ)
+          .map(id => practicePackages.find(p => p.id === id))
+          .filter(Boolean) as PracticePackage[];
+
+        const optionRows: Array<{
+          letter: 'A' | 'B' | 'C' | 'D' | 'E';
+          text: string;
+          weight: number;
+        }> = [
+          { letter: 'A', text: activeQ.option_a, weight: activeQ.weight_a ?? 0 },
+          { letter: 'B', text: activeQ.option_b, weight: activeQ.weight_b ?? 0 },
+          { letter: 'C', text: activeQ.option_c, weight: activeQ.weight_c ?? 0 },
+          { letter: 'D', text: activeQ.option_d, weight: activeQ.weight_d ?? 0 },
+          { letter: 'E', text: activeQ.option_e, weight: activeQ.weight_e ?? 0 }
+        ];
+
+        const maxTkpWeight = activeQ.category === 'TKP'
+          ? Math.max(...optionRows.map(o => o.weight), 5)
+          : 5;
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xs"
+            onClick={() => setPreviewDetailQuestion(null)}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-3xl bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+            >
+              {/* Header */}
+              <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                    <Eye className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h3 className="font-extrabold text-sm text-slate-900">
+                        Detail Lengkap Butir Soal
+                      </h3>
+                      {currentIdx >= 0 && (
+                        <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px] font-bold">
+                          Soal {currentIdx + 1} / {totalInContext}
+                        </span>
+                      )}
+                      <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-mono text-[10px] font-extrabold">
+                        {activeQ.category}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold">
+                        {activeQ.difficulty}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
+                          activeQ.is_active
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-900'
+                        }`}
+                      >
+                        {activeQ.is_active ? 'TERBIT' : 'NONTERBIT'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                      Topik: <strong className="text-slate-700">{activeQ.topic || '-'}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDetailQuestion(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 cursor-pointer shrink-0"
+                  title="Tutup"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 overflow-y-auto space-y-4">
+                {assignedBoxes.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span className="font-bold text-slate-500">Terhubung ke Kotak:</span>
+                    {assignedBoxes.map(box => (
+                      <span
+                        key={box.id}
+                        className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-200 font-bold"
+                      >
+                        {box.title}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Soal Lengkap */}
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                  <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                    Pertanyaan
+                  </div>
+                  {activeQ.question_text?.trim() && (
+                    <p className="text-sm text-slate-900 leading-relaxed whitespace-pre-wrap font-medium">
+                      {activeQ.question_text}
+                    </p>
+                  )}
+                  {activeQ.question_image_url && (
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200 inline-block max-w-full">
+                      <img
+                        src={activeQ.question_image_url}
+                        alt="Gambar Soal"
+                        className="max-h-72 w-auto max-w-full object-contain rounded"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Pilihan Jawaban A-E */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                      Pilihan Jawaban &amp; {activeQ.category === 'TKP' ? 'Bobot Skor TKP (1–5)' : 'Kunci Jawaban'}
+                    </span>
+                    <span className="text-xs font-extrabold text-emerald-700 font-mono">
+                      Kunci: {activeQ.correct_answer}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {optionRows.map(opt => {
+                      const isCorrect =
+                        activeQ.category === 'TKP'
+                          ? opt.weight === maxTkpWeight || opt.letter === activeQ.correct_answer
+                          : opt.letter === activeQ.correct_answer;
+
+                      return (
+                        <div
+                          key={opt.letter}
+                          className={`p-3 rounded-xl border flex items-start justify-between gap-3 text-xs sm:text-sm transition-colors ${
+                            isCorrect
+                              ? 'bg-emerald-50/90 border-emerald-400 text-emerald-950 shadow-2xs'
+                              : 'bg-white border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <span
+                              className={`w-6 h-6 rounded-lg font-mono font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5 ${
+                                isCorrect
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {opt.letter}
+                            </span>
+                            <span className="whitespace-pre-wrap leading-relaxed">
+                              {opt.text}
+                            </span>
+                          </div>
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            {activeQ.category === 'TKP' && (
+                              <span
+                                className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-extrabold ${
+                                  opt.weight >= 5
+                                    ? 'bg-emerald-600 text-white'
+                                    : opt.weight >= 4
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-slate-100 text-slate-700'
+                                }`}
+                              >
+                                Bobot: {opt.weight}
+                              </span>
+                            )}
+                            {isCorrect && (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-extrabold inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>{activeQ.category === 'TKP' ? 'SKOR TERTINGGI' : 'KUNCI'}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Pembahasan Lengkap */}
+                <div className="p-4 rounded-xl bg-blue-50/75 border border-blue-200 space-y-2.5">
+                  <div className="text-[11px] font-extrabold uppercase tracking-wider text-blue-800 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Pembahasan Lengkap</span>
+                  </div>
+                  {activeQ.explanation?.trim() ? (
+                    <p className="text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+                      {activeQ.explanation}
+                    </p>
+                  ) : !activeQ.explanation_image_url ? (
+                    <p className="text-xs sm:text-sm text-slate-500 italic">
+                      Belum ada catatan pembahasan tertulis untuk butir soal ini.
+                    </p>
+                  ) : null}
+                  {activeQ.explanation_image_url && (
+                    <div className="p-2.5 bg-white rounded-xl border border-blue-200 inline-block max-w-full">
+                      <img
+                        src={activeQ.explanation_image_url}
+                        alt="Gambar Pembahasan"
+                        className="max-h-72 w-auto max-w-full object-contain rounded"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={!hasPrev}
+                    onClick={() => goToContextIndex(currentIdx - 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold text-slate-700 cursor-pointer"
+                  >
+                    &larr; Soal Sebelumnya
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!hasNext}
+                    onClick={() => goToContextIndex(currentIdx + 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold text-slate-700 cursor-pointer"
+                  >
+                    Soal Berikutnya &rarr;
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateQuestion({ ...activeQ, is_active: !activeQ.is_active });
+                      setBankAssignNotice(
+                        !activeQ.is_active
+                          ? 'Butir soal diterbitkan dan aktif untuk ujian peserta.'
+                          : 'Butir soal dinonterbitkan sementara.'
+                      );
+                      setTimeout(() => setBankAssignNotice(''), 3500);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border inline-flex items-center gap-1.5 cursor-pointer ${
+                      activeQ.is_active
+                        ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                    }`}
+                  >
+                    {activeQ.is_active ? (
+                      <>
+                        <EyeOff className="w-3.5 h-3.5" />
+                        <span>Nonterbitkan</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Terbitkan Soal</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewDetailQuestion(null);
+                      openEditQuestion(activeQ);
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Edit Soal</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewDetailQuestion(null)}
+                    className="px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

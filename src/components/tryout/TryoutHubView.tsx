@@ -362,63 +362,72 @@ export const TryoutHubView: React.FC = () => {
               return (
                 <div
                   key={pkg.id}
-                  className="p-3 sm:p-3.5 bg-white rounded-xl border border-slate-300/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between gap-2.5 relative"
+                  className="p-3.5 sm:p-4 bg-white rounded-xl border border-slate-300/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between gap-3 relative"
                 >
-                  {/* Compact Header Row: Icon Left + Title/Meta Right + Top-Right Badges */}
-                  <div className="flex items-start gap-2.5">
-                    <div className="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
-                      <FileText className="w-5 h-5 stroke-[1.8]" />
-                    </div>
+                  <div className="space-y-2">
+                    {/* 1. Judul Besar Paling Atas */}
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+                        <FileText className="w-4.5 h-4.5 stroke-[1.8]" />
+                      </div>
 
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-start justify-between gap-1.5">
-                        <h3 className="font-extrabold text-[13px] sm:text-sm text-slate-900 leading-snug line-clamp-2">
-                          {pkg.title}
-                        </h3>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center">
-                            <Flame className="w-2.5 h-2.5 fill-current" />
-                          </span>
-                          {pkg.access_tier === 'PLATINUM' && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-purple-600 text-white tracking-wider">
-                              PLATINUM
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-extrabold text-sm sm:text-[15px] text-slate-900 leading-snug break-words">
+                            {pkg.title}
+                          </h3>
+                          <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                            <span className="w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center">
+                              <Flame className="w-2.5 h-2.5 fill-current" />
                             </span>
-                          )}
-                          {pkg.access_tier === 'PREMIUM' && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-sky-500 text-white tracking-wider">
-                              PREMIUM
-                            </span>
-                          )}
-                          {pkg.access_tier === 'GRATIS' && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-slate-700 text-white tracking-wider">
-                              GRATIS
-                            </span>
-                          )}
+                            {pkg.access_tier === 'PLATINUM' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-purple-600 text-white tracking-wider">
+                                PLATINUM
+                              </span>
+                            )}
+                            {pkg.access_tier === 'PREMIUM' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-sky-500 text-white tracking-wider">
+                                PREMIUM
+                              </span>
+                            )}
+                            {pkg.access_tier === 'GRATIS' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-600 text-white tracking-wider">
+                                GRATIS
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Compact inline Rating & Metadata */}
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-slate-500">
-                        <span className="inline-flex items-center gap-0.5 text-amber-500 font-bold">
-                          <Star className="w-3 h-3 fill-current" />
-                          {pkg.rating ? pkg.rating.toFixed(1) : '4.6'}
-                          <span className="text-blue-600 font-normal ml-0.5">
-                            ({(pkg.review_count || 320).toLocaleString('id-ID')})
-                          </span>
+                    {/* 2. Sub Judul Lengkap (Turun ke bawah otomatis jika panjang, tidak terpotong) */}
+                    {(pkg.subtitle || pkg.description) && (
+                      <p className="text-xs text-slate-600 leading-relaxed whitespace-normal break-words">
+                        {pkg.subtitle || pkg.description}
+                      </p>
+                    )}
+
+                    {/* 3. Jumlah Soal & Waktu */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                      <span className="inline-flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>{pkg.question_count} Soal</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span>{pkg.duration_minutes} Menit</span>
+                      </span>
+                      <span className="inline-flex items-center gap-0.5 text-amber-500 font-bold ml-auto">
+                        <Star className="w-3 h-3 fill-current" />
+                        {pkg.rating ? pkg.rating.toFixed(1) : '4.6'}
+                        <span className="text-blue-600 font-normal ml-0.5">
+                          ({(pkg.review_count || 320).toLocaleString('id-ID')})
                         </span>
-                        <span className="inline-flex items-center gap-1">
-                          <FileText className="w-3 h-3 text-slate-400" />
-                          {pkg.question_count} Soal
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          {pkg.duration_minutes} Menit
-                        </span>
-                      </div>
+                      </span>
                     </div>
                   </div>
 
-                  {/* Bottom Action Buttons: Kerjakan & Data ⌄ */}
+                  {/* 4. Bottom Action Buttons: Kerjakan & Data ⌄ */}
                   <div className="flex items-center gap-2 relative">
                     <button
                       onClick={() => handleStart(pkg)}
@@ -615,54 +624,59 @@ export const TryoutHubView: React.FC = () => {
               return (
                 <div
                   key={pkg.id}
-                  className="p-3 sm:p-3.5 bg-white rounded-xl border border-slate-300/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between gap-2.5 relative"
+                  className="p-3.5 sm:p-4 bg-white rounded-xl border border-slate-300/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between gap-3 relative"
                 >
-                  {/* Compact Header Row */}
-                  <div className="flex items-start gap-2.5">
-                    <div className="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
-                      <FileText className="w-5 h-5 stroke-[1.8]" />
-                    </div>
+                  <div className="space-y-2">
+                    {/* 1. Judul Besar Paling Atas */}
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+                        <FileText className="w-4.5 h-4.5 stroke-[1.8]" />
+                      </div>
 
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-start justify-between gap-1.5">
-                        <h3 className="font-extrabold text-[13px] sm:text-sm text-slate-900 leading-snug line-clamp-2">
-                          {pkg.title}
-                        </h3>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-sky-500 text-white tracking-wider">
-                            {catShort}
-                          </span>
-                          {pkg.access_tier === 'PREMIUM' || pkg.access_tier === 'PLATINUM' ? (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-blue-600 text-white tracking-wider">
-                              PREMIUM
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-extrabold text-sm sm:text-[15px] text-slate-900 leading-snug break-words">
+                            {pkg.title}
+                          </h3>
+                          <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-sky-500 text-white tracking-wider">
+                              {catShort}
                             </span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-600 text-white tracking-wider">
-                              GRATIS
-                            </span>
-                          )}
+                            {pkg.access_tier === 'PREMIUM' || pkg.access_tier === 'PLATINUM' ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-blue-600 text-white tracking-wider">
+                                PREMIUM
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-600 text-white tracking-wider">
+                                GRATIS
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
-                        <span className="inline-flex items-center gap-1">
-                          <FileText className="w-3 h-3 text-slate-400" />
-                          {pkg.question_count} Soal
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          {pkg.duration_minutes} Menit
-                        </span>
-                        {pkg.subtitle && (
-                          <span className="truncate max-w-[140px] text-slate-400 hidden sm:inline">
-                            · {pkg.subtitle}
-                          </span>
-                        )}
-                      </div>
+                    {/* 2. Sub Judul Lengkap (Turun ke bawah otomatis jika panjang, tidak terpotong) */}
+                    {(pkg.subtitle || pkg.description) && (
+                      <p className="text-xs text-slate-600 leading-relaxed whitespace-normal break-words">
+                        {pkg.subtitle || pkg.description}
+                      </p>
+                    )}
+
+                    {/* 3. Jumlah Soal & Waktu */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                      <span className="inline-flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>{pkg.question_count} Soal</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span>{pkg.duration_minutes} Menit</span>
+                      </span>
                     </div>
                   </div>
 
-                  {/* Bottom Action Buttons: Kerjakan & Data ⌄ */}
+                  {/* 4. Bottom Action Buttons: Kerjakan & Data ⌄ */}
                   <div className="flex items-center gap-2 relative">
                     <button
                       onClick={() => handleStart(pkg)}
@@ -946,52 +960,59 @@ export const TryoutHubView: React.FC = () => {
                 return (
                   <div
                     key={sim.id}
-                    className="p-3 sm:p-3.5 bg-white rounded-xl border border-slate-300/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between gap-2.5 relative"
+                    className="p-3.5 sm:p-4 bg-white rounded-xl border border-slate-300/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between gap-3 relative"
                   >
-                    {/* Compact Header Row */}
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
-                        <FileText className="w-5 h-5 stroke-[1.8]" />
-                      </div>
+                    <div className="space-y-2">
+                      {/* 1. Judul Besar Paling Atas */}
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+                          <FileText className="w-4.5 h-4.5 stroke-[1.8]" />
+                        </div>
 
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex items-start justify-between gap-1.5">
-                          <h3 className="font-extrabold text-[13px] sm:text-sm text-slate-900 leading-snug line-clamp-2">
-                            {sim.title}
-                          </h3>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-sky-500 text-white tracking-wider">
-                              {sim.category}
-                            </span>
-                            {sim.tier === 'PREMIUM' ? (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-blue-600 text-white tracking-wider">
-                                PREMIUM
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-extrabold text-sm sm:text-[15px] text-slate-900 leading-snug break-words">
+                              {sim.title}
+                            </h3>
+                            <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-sky-500 text-white tracking-wider">
+                                {sim.category}
                               </span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-600 text-white tracking-wider">
-                                GRATIS
-                              </span>
-                            )}
+                              {sim.tier === 'PREMIUM' ? (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-blue-600 text-white tracking-wider">
+                                  PREMIUM
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-600 text-white tracking-wider">
+                                  GRATIS
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
+                      </div>
 
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
-                          <span className="inline-flex items-center gap-1">
-                            <FileText className="w-3 h-3 text-slate-400" />
-                            {sim.soal} Soal
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-slate-400" />
-                            {sim.menit} Menit
-                          </span>
-                          <span className="truncate max-w-[140px] text-slate-400 hidden sm:inline">
-                            · {sim.subtitle}
-                          </span>
-                        </div>
+                      {/* 2. Sub Judul Lengkap (Turun ke bawah otomatis jika panjang, tidak terpotong) */}
+                      {sim.subtitle && (
+                        <p className="text-xs text-slate-600 leading-relaxed whitespace-normal break-words">
+                          {sim.subtitle}
+                        </p>
+                      )}
+
+                      {/* 3. Jumlah Soal & Waktu */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                        <span className="inline-flex items-center gap-1">
+                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span>{sim.soal} Soal</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                          <span>{sim.menit} Menit</span>
+                        </span>
                       </div>
                     </div>
 
-                    {/* Bottom Action Buttons: Kerjakan & Data ⌄ */}
+                    {/* 4. Bottom Action Buttons: Kerjakan & Data ⌄ */}
                     <div className="flex items-center gap-2 relative">
                       <button
                         onClick={() => {

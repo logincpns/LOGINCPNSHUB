@@ -1238,8 +1238,14 @@ export function readAndCompressImageFile(file: File, maxWidth = 1100, quality = 
           resolve(dataUrl);
           return;
         }
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        let compressed = canvas.toDataURL('image/jpeg', quality);
+        if (compressed.length > 360000) {
+          compressed = canvas.toDataURL('image/jpeg', 0.62);
+        }
+        resolve(compressed);
       };
       img.src = dataUrl;
     };

@@ -96,6 +96,7 @@ export interface Question {
   category: QuestionCategory;
   topic: string;
   question_text: string;
+  question_image_url?: string;
   option_a: string;
   option_b: string;
   option_c: string;
@@ -108,6 +109,7 @@ export interface Question {
   weight_d: number;
   weight_e: number;
   explanation: string;
+  explanation_image_url?: string;
   difficulty: DifficultyLevel;
   is_active: boolean;
   package_id?: string; // primary id of package/box

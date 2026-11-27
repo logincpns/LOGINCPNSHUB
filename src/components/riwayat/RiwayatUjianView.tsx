@@ -13,7 +13,9 @@ import {
   Award,
   Sparkles,
   ArrowLeft,
-  Calculator
+  Calculator,
+  ZoomIn,
+  X
 } from 'lucide-react';
 import { ExamResult, ExamType } from '../../types';
 import { getSkdScaleTargets, getCompactTargetRowsForExam } from '../../utils/passingGradeScale';
@@ -21,6 +23,7 @@ import { getSkdScaleTargets, getCompactTargetRowsForExam } from '../../utils/pas
 export const RiwayatUjianView: React.FC = () => {
   const {
     results,
+    questions,
     currentUser,
     settings,
     selectedResultReview,
@@ -39,6 +42,7 @@ export const RiwayatUjianView: React.FC = () => {
 
   const [filterType, setFilterType] = useState<ExamType | 'ALL'>('ALL');
   const [reviewQuestionIdx, setReviewQuestionIdx] = useState<number>(0);
+  const [zoomImage, setZoomImage] = useState<{ url: string; title: string } | null>(null);
 
   const userResults = results.filter(r => r.user_id === currentUser?.id);
 
@@ -51,6 +55,9 @@ export const RiwayatUjianView: React.FC = () => {
   if (selectedResultReview) {
     const qList = selectedResultReview.questions_snapshot;
     const currentQ = qList[reviewQuestionIdx] || qList[0];
+    const liveQuestion = currentQ ? questions.find(item => item.id === currentQ.id) : undefined;
+    const activeQuestionImage = currentQ?.question_image_url || liveQuestion?.question_image_url;
+    const activeExplanationImage = currentQ?.explanation_image_url || liveQuestion?.explanation_image_url;
     const userAns = selectedResultReview.user_answers[currentQ?.id];
     const isCorrect = currentQ?.category !== 'TKP' ? userAns === currentQ?.correct_answer : undefined;
 
@@ -311,10 +318,45 @@ export const RiwayatUjianView: React.FC = () => {
               </div>
             </div>
 
-            {/* Question Text */}
-            <div className="text-sm text-slate-800 leading-relaxed font-normal whitespace-pre-line">
-              {currentQ?.question_text}
-            </div>
+            {/* Question Text & Optional Image */}
+            {currentQ?.question_text?.trim() && (
+              <div className="text-sm text-slate-800 leading-relaxed font-normal whitespace-pre-line">
+                {currentQ?.question_text}
+              </div>
+            )}
+            {activeQuestionImage && (
+              <div className="inline-flex flex-col items-start gap-1.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200 max-w-full">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setZoomImage({
+                      url: activeQuestionImage,
+                      title: `Gambar Soal #${reviewQuestionIdx + 1}`
+                    })
+                  }
+                  className="block rounded-lg overflow-hidden bg-white border border-slate-200 cursor-zoom-in"
+                >
+                  <img
+                    src={activeQuestionImage}
+                    alt={`Gambar Soal #${reviewQuestionIdx + 1}`}
+                    className="max-h-72 w-auto max-w-full object-contain mx-auto"
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setZoomImage({
+                      url: activeQuestionImage,
+                      title: `Gambar Soal #${reviewQuestionIdx + 1}`
+                    })
+                  }
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                  <span>Perbesar Gambar Soal</span>
+                </button>
+              </div>
+            )}
 
             {/* Options with Answer Highlight */}
             <div className="space-y-2.5">
@@ -371,14 +413,49 @@ export const RiwayatUjianView: React.FC = () => {
             </div>
 
             {/* Explanation / Pembahasan per PRD Section 10 */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
               <div className="flex items-center gap-1.5 text-xs font-bold text-blue-800">
                 <Sparkles className="w-4 h-4 text-blue-600" />
                 <span>Kunci &amp; Pembahasan Lengkap:</span>
               </div>
-              <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                {currentQ?.explanation}
-              </p>
+              {currentQ?.explanation?.trim() && (
+                <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                  {currentQ?.explanation}
+                </p>
+              )}
+              {activeExplanationImage && (
+                <div className="inline-flex flex-col items-start gap-1.5 p-2 rounded-xl bg-white border border-slate-200 max-w-full">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setZoomImage({
+                        url: activeExplanationImage,
+                        title: `Gambar Pembahasan Soal #${reviewQuestionIdx + 1}`
+                      })
+                    }
+                    className="block rounded-lg overflow-hidden bg-white cursor-zoom-in"
+                  >
+                    <img
+                      src={activeExplanationImage}
+                      alt={`Gambar Pembahasan Soal #${reviewQuestionIdx + 1}`}
+                      className="max-h-72 w-auto max-w-full object-contain mx-auto"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setZoomImage({
+                        url: activeExplanationImage,
+                        title: `Gambar Pembahasan Soal #${reviewQuestionIdx + 1}`
+                      })
+                    }
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                    <span>Perbesar Gambar Pembahasan</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Pagination / Prev & Next */}
@@ -735,6 +812,36 @@ export const RiwayatUjianView: React.FC = () => {
           </>
         )}
       </div>
+
+      {zoomImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs"
+          onClick={() => setZoomImage(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="relative max-w-4xl w-full bg-white rounded-2xl p-3 sm:p-4 shadow-2xl border border-slate-200 flex flex-col gap-3"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="text-xs font-extrabold text-slate-800">{zoomImage.title}</span>
+              <button
+                type="button"
+                onClick={() => setZoomImage(null)}
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-2 flex items-center justify-center max-h-[78vh] overflow-auto">
+              <img
+                src={zoomImage.url}
+                alt={zoomImage.title}
+                className="max-w-full max-h-[72vh] object-contain rounded"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

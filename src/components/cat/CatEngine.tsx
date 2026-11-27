@@ -10,7 +10,8 @@ import {
   Save,
   XCircle,
   LayoutGrid,
-  X
+  X,
+  ZoomIn
 } from 'lucide-react';
 
 export const CatEngine: React.FC = () => {
@@ -29,6 +30,7 @@ export const CatEngine: React.FC = () => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [autoSavedNotice, setAutoSavedNotice] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'TWK' | 'TIU' | 'TKP'>('ALL');
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
 
   const [secondsLeft, setSecondsLeft] = useState<number>(() => {
     return examSession ? examSession.timeRemainingSeconds : 0;
@@ -227,11 +229,40 @@ export const CatEngine: React.FC = () => {
             </div>
           </div>
 
-          {/* Question Text + Options (Compact spacing on mobile so minimal scroll) */}
+          {/* Question Text + Optional Image (Compact spacing on mobile so minimal scroll) */}
           <div className="flex-1 overflow-y-auto px-3.5 py-3 sm:p-6 md:p-8">
-            <div className="text-slate-800 text-[13px] sm:text-sm md:text-base leading-snug sm:leading-relaxed whitespace-pre-line mb-3.5 sm:mb-7 font-normal">
-              {currentQ.question_text}
-            </div>
+            {currentQ.question_text?.trim() && (
+              <div className="text-slate-800 text-[13px] sm:text-sm md:text-base leading-snug sm:leading-relaxed whitespace-pre-line mb-3.5 sm:mb-5 font-normal">
+                {currentQ.question_text}
+              </div>
+            )}
+
+            {currentQ.question_image_url && (
+              <div className="mb-4 sm:mb-6">
+                <div className="inline-flex flex-col items-start gap-1.5 p-2 sm:p-3 rounded-xl bg-slate-50 border border-slate-200 max-w-full shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setZoomImageUrl(currentQ.question_image_url || null)}
+                    className="group relative block rounded-lg overflow-hidden bg-white border border-slate-200 cursor-zoom-in"
+                    title="Klik untuk memperbesar gambar soal"
+                  >
+                    <img
+                      src={currentQ.question_image_url}
+                      alt={`Gambar Soal ${examSession.currentQuestionIndex + 1}`}
+                      className="max-h-64 sm:max-h-80 w-auto max-w-full object-contain mx-auto"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoomImageUrl(currentQ.question_image_url || null)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                    <span>Perbesar Gambar Soal</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Opsi A - E */}
             <div className="space-y-2 sm:space-y-3 max-w-3xl">
@@ -658,6 +689,39 @@ export const CatEngine: React.FC = () => {
               >
                 Yakin &amp; Kirim Ujian
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Zoom Gambar Soal */}
+      {zoomImageUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs"
+          onClick={() => setZoomImageUrl(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="relative max-w-4xl w-full bg-white rounded-2xl p-3 sm:p-4 shadow-2xl border border-slate-200 flex flex-col gap-3"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="text-xs font-extrabold text-slate-800">
+                Tampilan Penuh Gambar Soal #{examSession.currentQuestionIndex + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoomImageUrl(null)}
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-2 flex items-center justify-center max-h-[78vh] overflow-auto">
+              <img
+                src={zoomImageUrl}
+                alt="Gambar Soal Penuh"
+                className="max-w-full max-h-[72vh] object-contain rounded"
+              />
             </div>
           </div>
         </div>

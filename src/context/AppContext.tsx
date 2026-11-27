@@ -2466,7 +2466,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setResults(prev => [newResult, ...prev]);
-    void syncDoc('exam_results', newResult.id, newResult as unknown as Record<string, unknown>, OperationType.CREATE).catch(() => {});
+    const firestoreExamResultPayload = {
+      ...newResult,
+      questions_snapshot: examQuestions.map(q => {
+        const { question_image_url, explanation_image_url, ...rest } = q;
+        return {
+          ...rest,
+          ...(question_image_url && !question_image_url.startsWith('data:') ? { question_image_url } : {}),
+          ...(explanation_image_url && !explanation_image_url.startsWith('data:') ? { explanation_image_url } : {})
+        };
+      })
+    };
+    void syncDoc(
+      'exam_results',
+      newResult.id,
+      firestoreExamResultPayload as unknown as Record<string, unknown>,
+      OperationType.CREATE
+    ).catch(() => {});
     setExamSession(null);
     setSelectedResultReview(newResult);
     setActiveView('riwayat-ujian');
