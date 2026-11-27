@@ -41,8 +41,10 @@ import {
   Briefcase,
   MapPin,
   Calendar,
-  LogOut
+  LogOut,
+  Crop
 } from 'lucide-react';
+import { PhotoCropModal } from './PhotoCropModal';
 
 const PROMO_MEDIA_OPTIONS = [
   'WA Grup',
@@ -103,8 +105,10 @@ export const ProfilView: React.FC = () => {
   const [notice, setNotice] = useState('');
   const [profileError, setProfileError] = useState('');
   const [photoError, setPhotoError] = useState('');
+  const [photoNotice, setPhotoNotice] = useState('');
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
+  const [cropSourceUrl, setCropSourceUrl] = useState<string | null>(null);
 
   // Affiliate join / edit referral code states
   const suggestedCode = currentUser
@@ -264,14 +268,15 @@ export const ProfilView: React.FC = () => {
     if (!file) return;
 
     setPhotoError('');
+    setPhotoNotice('');
     if (!file.type.startsWith('image/')) {
       setPhotoError('Mohon pilih file gambar (JPG, PNG, WEBP).');
       e.target.value = '';
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setPhotoError('Ukuran gambar maksimal 5 MB.');
+    if (file.size > 8 * 1024 * 1024) {
+      setPhotoError('Ukuran file gambar maksimal 8 MB.');
       e.target.value = '';
       return;
     }
@@ -282,38 +287,12 @@ export const ProfilView: React.FC = () => {
       const rawDataUrl = String(reader.result || '');
       const img = new Image();
       img.onload = () => {
-        const maxSize = 400;
-        let targetW = img.width;
-        let targetH = img.height;
-        if (targetW > maxSize || targetH > maxSize) {
-          if (targetW > targetH) {
-            targetH = Math.round((targetH * maxSize) / targetW);
-            targetW = maxSize;
-          } else {
-            targetW = Math.round((targetW * maxSize) / targetH);
-            targetH = maxSize;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = targetW;
-        canvas.height = targetH;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, targetW, targetH);
-          const compressedUrl = canvas.toDataURL('image/jpeg', 0.85);
-          setPhotoUrl(compressedUrl);
-          updateCurrentUserProfile({ photo_url: compressedUrl });
-        } else {
-          setPhotoUrl(rawDataUrl);
-          updateCurrentUserProfile({ photo_url: rawDataUrl });
-        }
         setIsProcessingPhoto(false);
-        setNotice('Foto profil berhasil diperbarui!');
-        setTimeout(() => setNotice(''), 3000);
+        setCropSourceUrl(rawDataUrl);
       };
       img.onerror = () => {
         setIsProcessingPhoto(false);
-        setPhotoError('Gagal memproses gambar. Silakan coba gambar lain.');
+        setPhotoError('Gagal memuat gambar. Silakan coba gambar lain.');
       };
       img.src = rawDataUrl;
     };
@@ -323,6 +302,19 @@ export const ProfilView: React.FC = () => {
     };
     reader.readAsDataURL(file);
     e.target.value = '';
+  };
+
+  const handleCropConfirm = (croppedDataUrl: string) => {
+    setPhotoUrl(croppedDataUrl);
+    updateCurrentUserProfile({ photo_url: croppedDataUrl });
+    setCropSourceUrl(null);
+    setPhotoError('');
+    setPhotoNotice('Foto profil berhasil di-crop dan diperbarui!');
+    setNotice('Foto profil berhasil diperbarui!');
+    setTimeout(() => {
+      setPhotoNotice('');
+      setNotice('');
+    }, 3500);
   };
 
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -629,7 +621,7 @@ export const ProfilView: React.FC = () => {
               ? `Target: ${currentUser.targetAgency}${currentUser.targetFormation ? ` - ${currentUser.targetFormation}` : ''}`
               : 'Belum memilih formasi'}
           </p>
-          <div className="pt-1">
+          <div className="pt-1 flex flex-wrap items-center justify-center md:justify-start gap-3">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -637,12 +629,28 @@ export const ProfilView: React.FC = () => {
               className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-700 hover:text-blue-900 hover:underline disabled:opacity-60 cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>{isProcessingPhoto ? 'Memproses Gambar...' : 'Ganti Foto Profil dari Galeri / Kamera'}</span>
+              <span>{isProcessingPhoto ? 'Memuat Gambar...' : 'Ganti / Upload Foto Profil (Dengan Crop)'}</span>
             </button>
-            {photoError && (
-              <p className="text-[11px] font-semibold text-red-600 mt-1">{photoError}</p>
+            {(photoUrl || currentUser.photo_url || '').startsWith('data:image/') && (
+              <button
+                type="button"
+                onClick={() => setCropSourceUrl(photoUrl || currentUser.photo_url)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-blue-700 hover:underline cursor-pointer"
+              >
+                <Crop className="w-3.5 h-3.5" />
+                <span>Atur Crop Foto</span>
+              </button>
             )}
           </div>
+          {photoNotice && (
+            <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 inline-flex items-center gap-1.5 mt-1">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <span>{photoNotice}</span>
+            </p>
+          )}
+          {photoError && (
+            <p className="text-[11px] font-semibold text-red-600 mt-1">{photoError}</p>
+          )}
         </div>
 
         {/* Quick Dashboard, Panel Shortcut & Logout */}
@@ -2297,18 +2305,33 @@ export const ProfilView: React.FC = () => {
               />
             </div>
 
-            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsPhotoPreviewOpen(false);
-                  fileInputRef.current?.click();
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold cursor-pointer"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Ganti Foto</span>
-              </button>
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPhotoPreviewOpen(false);
+                    fileInputRef.current?.click();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Ganti Foto</span>
+                </button>
+                {(photoUrl || currentUser.photo_url || '').startsWith('data:image/') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPhotoPreviewOpen(false);
+                      setCropSourceUrl(photoUrl || currentUser.photo_url);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+                  >
+                    <Crop className="w-3.5 h-3.5" />
+                    <span>Crop Foto</span>
+                  </button>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setIsPhotoPreviewOpen(false)}
@@ -2319,6 +2342,17 @@ export const ProfilView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Crop Foto Profil sebelum disimpan */}
+      {cropSourceUrl && (
+        <PhotoCropModal
+          key={cropSourceUrl}
+          imageSrc={cropSourceUrl}
+          onCancel={() => setCropSourceUrl(null)}
+          onConfirm={handleCropConfirm}
+          onChooseAnotherFile={() => fileInputRef.current?.click()}
+        />
       )}
     </div>
   );

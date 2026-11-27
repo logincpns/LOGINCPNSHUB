@@ -26,9 +26,119 @@ import {
   ListOrdered,
   X,
   Sparkles,
-  Monitor
+  Monitor,
+  ArrowUpDown
 } from 'lucide-react';
 import { PracticePackage, PackageAccessTier, QuestionCategory } from '../../types';
+
+interface LatihanTopicOption {
+  id: string;
+  label: string;
+  category: 'TWK' | 'TIU' | 'TKP';
+  keywords: string[];
+}
+
+const LATIHAN_TOPIC_OPTIONS: LatihanTopicOption[] = [
+  // TWK
+  {
+    id: 'NASIONALISME',
+    label: 'Nasionalisme',
+    category: 'TWK',
+    keywords: ['nasionalisme', 'cinta tanah air', 'sejarah perjuangan']
+  },
+  {
+    id: 'INTEGRITAS',
+    label: 'Integritas',
+    category: 'TWK',
+    keywords: ['integritas', 'anti korupsi', 'gratifikasi']
+  },
+  {
+    id: 'BELA_NEGARA',
+    label: 'Bela Negara',
+    category: 'TWK',
+    keywords: ['bela negara', 'pertahanan negara']
+  },
+  {
+    id: 'PILAR_NEGARA',
+    label: 'Pilar Negara',
+    category: 'TWK',
+    keywords: ['pilar negara', 'pilar kebangsaan', 'pancasila', 'uud 1945', 'uud nri', 'bhinneka', 'bhineka', 'nkri']
+  },
+  {
+    id: 'BAHASA_INDONESIA',
+    label: 'Bahasa Indonesia',
+    category: 'TWK',
+    keywords: ['bahasa indonesia', 'kalimat efektif', 'eyd', 'puebi', 'ejaan', 'paragraf', 'kata baku']
+  },
+  // TIU
+  {
+    id: 'PENALARAN_LOGIS',
+    label: 'Penalaran Logis',
+    category: 'TIU',
+    keywords: ['penalaran logis', 'silogisme', 'premis']
+  },
+  {
+    id: 'ANALITIS_KOMBINASI',
+    label: 'Analitis Kombinasi',
+    category: 'TIU',
+    keywords: ['analitis', 'kombinasi']
+  },
+  {
+    id: 'NUMERIK',
+    label: 'Numerik & Hitung',
+    category: 'TIU',
+    keywords: ['perbandingan', 'numerik', 'aljabar', 'pecahan', 'deret', 'berhitung', 'kuantitatif']
+  },
+  {
+    id: 'KECUKUPAN_DATA',
+    label: 'Kecukupan Data',
+    category: 'TIU',
+    keywords: ['kecukupan data', 'statistika']
+  },
+  {
+    id: 'FIGURAL',
+    label: 'Figural (Gambar)',
+    category: 'TIU',
+    keywords: ['figural', 'gambar', 'pola bentuk']
+  },
+  // TKP
+  {
+    id: 'PELAYANAN_PUBLIK',
+    label: 'Pelayanan Publik',
+    category: 'TKP',
+    keywords: ['pelayanan publik', 'keramahan']
+  },
+  {
+    id: 'JEJARING_KERJA',
+    label: 'Jejaring Kerja',
+    category: 'TKP',
+    keywords: ['jejaring kerja', 'kolaborasi']
+  },
+  {
+    id: 'SOSIAL_TIK',
+    label: 'Sosial Budaya & TIK',
+    category: 'TKP',
+    keywords: ['sosial budaya', 'tik', 'teknologi']
+  },
+  {
+    id: 'PROFESIONALISME',
+    label: 'Profesionalisme',
+    category: 'TKP',
+    keywords: ['profesionalisme']
+  },
+  {
+    id: 'ANTI_RADIKALISME',
+    label: 'Anti-Radikalisme',
+    category: 'TKP',
+    keywords: ['anti-radikalisme', 'anti radikalisme', 'radikalisme', 'ideologi']
+  }
+];
+
+const matchesLatihanTopic = (pkg: PracticePackage, topic: LatihanTopicOption): boolean => {
+  if (pkg.category !== topic.category) return false;
+  const hay = `${pkg.title} ${pkg.subtitle || ''} ${pkg.description || ''}`.toLowerCase();
+  return topic.keywords.some(kw => hay.includes(kw));
+};
 
 export const TryoutHubView: React.FC = () => {
   const {
@@ -54,7 +164,11 @@ export const TryoutHubView: React.FC = () => {
   // Search & Filter States for Latihan Soal
   const [searchLatihan, setSearchLatihan] = useState('');
   const [catFilterLatihan, setCatFilterLatihan] = useState<'ALL' | QuestionCategory>('ALL');
+  const [topicFilterLatihan, setTopicFilterLatihan] = useState<string>('ALL');
   const [tierFilterLatihan, setTierFilterLatihan] = useState<'ALL' | PackageAccessTier>('ALL');
+  const [sortByLatihan, setSortByLatihan] = useState<
+    'NATURAL_ASC' | 'NATURAL_DESC' | 'NEWEST' | 'OLDEST' | 'POPULAR' | 'SOAL_ASC' | 'SOAL_DESC'
+  >('NATURAL_ASC');
 
   // Search & Filter States for Tryout Kategori & Spesialis
   const [searchKategori, setSearchKategori] = useState('');
@@ -91,17 +205,45 @@ export const TryoutHubView: React.FC = () => {
       });
   }, [practicePackages, searchTryout, tierFilterTryout, sortByTryout]);
 
-  // Filtered Latihan packages (type LATIHAN_HARIAN / DRILL_KATEGORI, published only)
+  // Base published Latihan packages (LATIHAN_HARIAN / DRILL_KATEGORI)
+  const publishedLatihanPackages = useMemo(() => {
+    return practicePackages.filter(
+      p => p.is_active !== false && (p.package_type === 'LATIHAN_HARIAN' || p.package_type === 'DRILL_KATEGORI')
+    );
+  }, [practicePackages]);
+
+  // Topic options visible based on active category + package counts
+  const visibleLatihanTopics = useMemo(() => {
+    const scopePackages =
+      catFilterLatihan === 'ALL'
+        ? publishedLatihanPackages
+        : publishedLatihanPackages.filter(p => p.category === catFilterLatihan);
+
+    return LATIHAN_TOPIC_OPTIONS.filter(topic => {
+      if (catFilterLatihan !== 'ALL') {
+        return topic.category === catFilterLatihan;
+      }
+      // Always display core TWK topics requested + TIU/TKP topics that have matching packages
+      if (topic.category === 'TWK') return true;
+      return scopePackages.some(pkg => matchesLatihanTopic(pkg, topic));
+    }).map(topic => ({
+      ...topic,
+      count: scopePackages.filter(pkg => matchesLatihanTopic(pkg, topic)).length
+    }));
+  }, [publishedLatihanPackages, catFilterLatihan]);
+
+  // Filtered & Sorted Latihan packages
   const filteredLatihan = useMemo(() => {
-    return practicePackages
-      .filter(p => p.is_active !== false)
-      .filter(p => p.package_type === 'LATIHAN_HARIAN' || p.package_type === 'DRILL_KATEGORI')
+    const activeTopic = LATIHAN_TOPIC_OPTIONS.find(t => t.id === topicFilterLatihan);
+
+    return publishedLatihanPackages
       .filter(p => {
         if (!searchLatihan.trim()) return true;
         const q = searchLatihan.toLowerCase();
         return (
           p.title.toLowerCase().includes(q) ||
           (p.subtitle && p.subtitle.toLowerCase().includes(q)) ||
+          (p.description && p.description.toLowerCase().includes(q)) ||
           p.category.toLowerCase().includes(q)
         );
       })
@@ -110,10 +252,42 @@ export const TryoutHubView: React.FC = () => {
         return p.category === catFilterLatihan;
       })
       .filter(p => {
+        if (!activeTopic) return true;
+        return matchesLatihanTopic(p, activeTopic);
+      })
+      .filter(p => {
         if (tierFilterLatihan === 'ALL') return true;
         return p.access_tier === tierFilterLatihan;
+      })
+      .sort((a, b) => {
+        if (sortByLatihan === 'NATURAL_DESC') {
+          return b.title.localeCompare(a.title, 'id', { numeric: true, sensitivity: 'base' });
+        }
+        if (sortByLatihan === 'NEWEST') {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        if (sortByLatihan === 'OLDEST') {
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        }
+        if (sortByLatihan === 'POPULAR') {
+          return (b.completed_count || 0) - (a.completed_count || 0);
+        }
+        if (sortByLatihan === 'SOAL_ASC') {
+          return (a.question_count || 0) - (b.question_count || 0);
+        }
+        if (sortByLatihan === 'SOAL_DESC') {
+          return (b.question_count || 0) - (a.question_count || 0);
+        }
+        return a.title.localeCompare(b.title, 'id', { numeric: true, sensitivity: 'base' });
       });
-  }, [practicePackages, searchLatihan, catFilterLatihan, tierFilterLatihan]);
+  }, [
+    publishedLatihanPackages,
+    searchLatihan,
+    catFilterLatihan,
+    topicFilterLatihan,
+    tierFilterLatihan,
+    sortByLatihan
+  ]);
 
   // Handle start package
   const handleStart = (pkg: PracticePackage) => {
@@ -523,83 +697,117 @@ export const TryoutHubView: React.FC = () => {
       {/* ================= TAB 2: LATIHAN SOAL & DRILL (Minimalis + Kerjakan & Data) ================= */}
       {activeTab === 'LATIHAN_SOAL' && (
         <div className="space-y-3 sm:space-y-4">
-          {/* Top Search Bar & Filter */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          {/* Top Search Bar, Category & Sort Controls */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchLatihan}
                 onChange={e => setSearchLatihan(e.target.value)}
-                placeholder="Cari latihan..."
+                placeholder="Cari judul atau materi latihan..."
                 className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 shadow-2xs focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
               />
               {searchLatihan && (
                 <button
                   onClick={() => setSearchLatihan('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
-            <select
-              value={catFilterLatihan}
-              onChange={e => setCatFilterLatihan(e.target.value as any)}
-              className="py-2 px-2.5 sm:px-3 bg-white border border-slate-300 rounded-xl text-[11px] sm:text-xs font-bold text-slate-700 shadow-2xs focus:outline-blue-500 max-w-[135px] sm:max-w-none"
-            >
-              <option value="ALL">Semua Kategori</option>
-              <option value="TIU">TIU</option>
-              <option value="TWK">TWK</option>
-              <option value="TKP">TKP</option>
-            </select>
+            <div className="grid grid-cols-2 sm:flex items-center gap-2">
+              <select
+                aria-label="Filter Kategori Latihan"
+                value={catFilterLatihan}
+                onChange={e => {
+                  setCatFilterLatihan(e.target.value as any);
+                  setTopicFilterLatihan('ALL');
+                }}
+                className="py-2 px-2.5 sm:px-3 bg-white border border-slate-300 rounded-xl text-[11px] sm:text-xs font-bold text-slate-700 shadow-2xs focus:outline-blue-500 cursor-pointer"
+              >
+                <option value="ALL">Semua Kategori</option>
+                <option value="TWK">TWK</option>
+                <option value="TIU">TIU</option>
+                <option value="TKP">TKP</option>
+              </select>
+
+              <div className="relative flex items-center">
+                <ArrowUpDown className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 pointer-events-none" />
+                <select
+                  aria-label="Urutkan Latihan"
+                  value={sortByLatihan}
+                  onChange={e => setSortByLatihan(e.target.value as any)}
+                  className="w-full py-2 pl-7 pr-2.5 sm:pr-3 bg-white border border-slate-300 rounded-xl text-[11px] sm:text-xs font-bold text-slate-700 shadow-2xs focus:outline-blue-500 cursor-pointer"
+                >
+                  <option value="NATURAL_ASC">Urutan: A–Z / #1–#N</option>
+                  <option value="NATURAL_DESC">Urutan: Z–A / #N–#1</option>
+                  <option value="NEWEST">Terbaru Ditambahkan</option>
+                  <option value="OLDEST">Terlama</option>
+                  <option value="POPULAR">Paling Populer</option>
+                  <option value="SOAL_ASC">Soal Tersedikit</option>
+                  <option value="SOAL_DESC">Soal Terbanyak</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          {/* Quick Filter Badges for Latihan */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 text-[11px] sm:text-xs">
+          {/* Quick Category & Tier Badges for Latihan */}
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 text-[11px] sm:text-xs">
             <button
               onClick={() => {
                 setCatFilterLatihan('ALL');
+                setTopicFilterLatihan('ALL');
                 setTierFilterLatihan('ALL');
               }}
               className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full font-bold transition-colors whitespace-nowrap cursor-pointer ${
-                catFilterLatihan === 'ALL' && tierFilterLatihan === 'ALL'
+                catFilterLatihan === 'ALL' && tierFilterLatihan === 'ALL' && topicFilterLatihan === 'ALL'
                   ? 'bg-blue-700 text-white shadow-2xs'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              Semua ({practicePackages.filter(p => p.is_active !== false && (p.package_type === 'LATIHAN_HARIAN' || p.package_type === 'DRILL_KATEGORI')).length})
+              Semua ({publishedLatihanPackages.length})
             </button>
             <button
-              onClick={() => setCatFilterLatihan('TIU')}
+              onClick={() => {
+                setCatFilterLatihan('TIU');
+                setTopicFilterLatihan('ALL');
+              }}
               className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 catFilterLatihan === 'TIU'
                   ? 'bg-sky-500 text-white shadow-2xs'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              TIU
+              TIU ({publishedLatihanPackages.filter(p => p.category === 'TIU').length})
             </button>
             <button
-              onClick={() => setCatFilterLatihan('TWK')}
+              onClick={() => {
+                setCatFilterLatihan('TWK');
+                setTopicFilterLatihan('ALL');
+              }}
               className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 catFilterLatihan === 'TWK'
                   ? 'bg-blue-600 text-white shadow-2xs'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              TWK
+              TWK ({publishedLatihanPackages.filter(p => p.category === 'TWK').length})
             </button>
             <button
-              onClick={() => setCatFilterLatihan('TKP')}
+              onClick={() => {
+                setCatFilterLatihan('TKP');
+                setTopicFilterLatihan('ALL');
+              }}
               className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 catFilterLatihan === 'TKP'
                   ? 'bg-emerald-600 text-white shadow-2xs'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              TKP
+              TKP ({publishedLatihanPackages.filter(p => p.category === 'TKP').length})
             </button>
             <button
               onClick={() => setTierFilterLatihan(tierFilterLatihan === 'GRATIS' ? 'ALL' : 'GRATIS')}
@@ -611,6 +819,60 @@ export const TryoutHubView: React.FC = () => {
             >
               Gratis
             </button>
+          </div>
+
+          {/* Filter Materi / Topik */}
+          <div className="bg-white/90 border border-slate-200/90 rounded-xl px-2.5 py-2 sm:px-3 sm:py-2.5 shadow-2xs space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                <span>Filter Materi {catFilterLatihan !== 'ALL' ? `(${catFilterLatihan})` : ''}</span>
+              </span>
+              <span className="text-[11px] font-semibold text-slate-500">
+                Menampilkan {filteredLatihan.length} paket
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto sm:flex-wrap pb-0.5 text-[11px] sm:text-xs">
+              <button
+                onClick={() => setTopicFilterLatihan('ALL')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition-colors whitespace-nowrap cursor-pointer ${
+                  topicFilterLatihan === 'ALL'
+                    ? 'bg-slate-800 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Semua Materi
+              </button>
+              {visibleLatihanTopics.map(topic => {
+                const isSelected = topicFilterLatihan === topic.id;
+                return (
+                  <button
+                    key={topic.id}
+                    onClick={() => {
+                      if (isSelected) {
+                        setTopicFilterLatihan('ALL');
+                      } else {
+                        setTopicFilterLatihan(topic.id);
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-colors whitespace-nowrap cursor-pointer flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-700'
+                    }`}
+                  >
+                    <span>{topic.label}</span>
+                    <span
+                      className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded leading-none ${
+                        isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-500'
+                      }`}
+                    >
+                      {topic.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Minimalist Cards Grid with Kerjakan & Data ⌄ */}
@@ -758,6 +1020,7 @@ export const TryoutHubView: React.FC = () => {
                 onClick={() => {
                   setSearchLatihan('');
                   setCatFilterLatihan('ALL');
+                  setTopicFilterLatihan('ALL');
                   setTierFilterLatihan('ALL');
                 }}
                 className="px-4 py-1.5 bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
